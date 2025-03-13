@@ -1,0 +1,8 @@
+pyautogen
+autogenstudio
+fastapi
+uvicorn
+python-dotenv
+requests
+Pillow
+openai
