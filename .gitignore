@@ -4,4 +4,4 @@ weather.json
 .venv
 __pycache__
 .cache
-my-app
+my-app*

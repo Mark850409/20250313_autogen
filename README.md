@@ -48,7 +48,7 @@ MODEL=<MODEL_NAME>
 1. autogenstudio GUI介面運行：
 ```bash
 # Run AutoGen Studio on http://localhost:8000
-autogenstudio ui --port 8000 --appdir ./my-app
+autogenstudio ui --port 9000 --host 0.0.0.0 --appdir ./my-app0314
 ```
 
 2. 使用 Docker 部署：
