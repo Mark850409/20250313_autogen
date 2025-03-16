@@ -34,7 +34,7 @@ async def main() -> None:
     agent = AssistantAgent(name="fetcher", model_client=model_client, tools=tools, reflect_on_tool_use=True)  # type: ignore
 
     # Let the agent fetch the content of a URL and summarize it.
-    result = await agent.run(task="請幫我爬取16型人格ESFP 分析 https://tw.imyfone.com/ai-tips/16-personalities-interpretation/")
+    result = await agent.run(task="請直接使用fetch工具，查詢INFJ人格特性、適合職業和代表人物。")
     print(result.messages[-1].content)
 
 asyncio.run(main())

@@ -1,6 +1,5 @@
 .env
 weather.json
-.env.*
 .venv
 __pycache__
 .cache
