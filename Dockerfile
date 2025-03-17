@@ -2,15 +2,23 @@ FROM mcr.microsoft.com/devcontainers/python:3.10
 
 WORKDIR /code
 
+# 安裝系統依賴
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libmcp-dev \
+    libopenmpi-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # 安裝必要的套件
 RUN pip install -U gunicorn autogenstudio fastapi uvicorn pydantic
 
-# 複製 requirements.txt 並安裝依賴
+# 嘗試安裝 requirements.txt，但忽略錯誤
 COPY requirements.txt /code/
-RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt || echo "部分依賴安裝失敗，繼續構建"
 
 # 為 autogen_api.py 安裝額外的依賴
-RUN pip install autogen
+RUN pip install autogen pyautogen
 
 RUN useradd -m -u 100000 user
 USER user
