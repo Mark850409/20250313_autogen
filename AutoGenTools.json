@@ -1,0 +1,217 @@
+{
+  "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+  "component_type": "team",
+  "version": 1,
+  "component_version": 1,
+  "description": "用來查詢知識庫的資料",
+  "label": "RAG_TEAM_17421",
+  "config": {
+    "participants": [
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "一個能夠為大家工作的工具人代理。",
+        "label": "工具人專家",
+        "config": {
+          "name": "assistant_agent",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "Chat completion client for OpenAI hosted models.",
+            "label": "OpenAIChatCompletionClient",
+            "config": {
+              "model": "gemini-2.0-flash",
+              "api_key": "AIzaSyC7bQrehwcofwkCoWZzmoVN-wc_jaYw67Q"
+            }
+          },
+          "tools": [
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "用來查詢世界各地的天氣",
+              "label": "天氣查詢小工具",
+              "config": {
+                "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"天氣查詢服務\")\n\n@mcp.tool()\nasync def get_weather(city: str) -> str:\n    \"\"\"\n    獲取指定城市的天氣信息\n    \n    Args:\n        city (str): 城市名稱\n        \n    Returns:\n        str: 天氣信息\n    \"\"\"\n    try:\n        # 檢查 API KEY\n        weather_api_key = os.getenv(\"WEATHER_API_KEY\")\n        if not weather_api_key:\n            return \"錯誤：未設置 WEATHER_API_KEY 環境變數\"\n\n        # 設定 API URL\n        api_url = \"https://api.weatherapi.com/v1/current.json\"\n        \n        # 設定請求頭和參數\n        headers = {\n            \"accept\": \"application/json\"\n        }\n        \n        params = {\n            \"key\": weather_api_key,\n            \"q\": city\n        }\n        \n        logger.info(f\"正在查詢 {city} 的天氣信息...\")\n        \n        # 發送請求\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\n                api_url, \n                headers=headers, \n                params=params, \n                timeout=10\n            )\n            \n            if response.status_code != 200:\n                error_text = response.text\n                logger.error(f\"API 請求錯誤：狀態碼 {response.status_code}, 回應: {error_text}\")\n                return f\"API 請求錯誤：無法獲取 {city} 的天氣信息\"\n            \n            data = response.json()\n        \n        # 解析回應\n        weather_text = data['current']['condition']['text']\n        temperature = data['current']['temp_c']\n        feels_like = data['current']['feelslike_c']\n        humidity = data['current']['humidity']\n        wind_kph = data['current']['wind_kph']\n        wind_dir = data['current']['wind_dir']\n        \n        # 格式化回應\n        weather_info = f\"\"\"\n【{city} 天氣信息】\n\n天氣狀況：{weather_text}\n溫度：{temperature}°C (體感溫度：{feels_like}°C)\n濕度：{humidity}%\n風速：{wind_kph} km/h ({wind_dir})\n\n資料來源：WeatherAPI.com\n查詢時間：{data['current']['last_updated']}\n\"\"\"\n        \n        logger.info(f\"成功獲取 {city} 的天氣信息\")\n        return weather_info\n\n    except httpx.RequestError as e:\n        logger.error(f\"請求錯誤: {e}\")\n        return f\"請求錯誤：無法連接到天氣 API ({str(e)})\"\n    except KeyError as e:\n        logger.error(f\"數據解析錯誤: {e}\")\n        return f\"數據解析錯誤：API 返回的數據格式不符合預期 ({str(e)})\"\n    except Exception as e:\n        logger.error(f\"發生未知錯誤: {e}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\nasync def get_forecast(city: str, days: int = 3) -> str:\n    \"\"\"\n    獲取指定城市的天氣預報\n    \n    Args:\n        city (str): 城市名稱\n        days (int): 預報天數 (1-7)\n        \n    Returns:\n        str: 天氣預報信息\n    \"\"\"\n    try:\n        # 檢查 API KEY\n        weather_api_key = os.getenv(\"WEATHER_API_KEY\")\n        if not weather_api_key:\n            return \"錯誤：未設置 WEATHER_API_KEY 環境變數\"\n\n        # 驗證天數參數\n        if days < 1 or days > 7:\n            return \"錯誤：預報天數必須在 1-7 之間\"\n\n        # 設定 API URL\n        api_url = \"https://api.weatherapi.com/v1/forecast.json\"\n        \n        # 設定請求頭和參數\n        headers = {\n            \"accept\": \"application/json\"\n        }\n        \n        params = {\n            \"key\": weather_api_key,\n            \"q\": city,\n            \"days\": days\n        }\n        \n        logger.info(f\"正在查詢 {city} 的 {days} 天天氣預報...\")\n        \n        # 發送請求\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\n                api_url, \n                headers=headers, \n                params=params, \n                timeout=10\n            )\n            \n            if response.status_code != 200:\n                error_text = response.text\n                logger.error(f\"API 請求錯誤：狀態碼 {response.status_code}, 回應: {error_text}\")\n                return f\"API 請求錯誤：無法獲取 {city} 的天氣預報\"\n            \n            data = response.json()\n        \n        # 解析回應\n        forecast_days = data['forecast']['forecastday']\n        \n        # 格式化回應\n        forecast_info = f\"【{city} {days} 天天氣預報】\\n\\n\"\n        \n        for day in forecast_days:\n            date = day['date']\n            condition = day['day']['condition']['text']\n            max_temp = day['day']['maxtemp_c']\n            min_temp = day['day']['mintemp_c']\n            \n            forecast_info += f\"日期：{date}\\n\"\n            forecast_info += f\"天氣狀況：{condition}\\n\"\n            forecast_info += f\"最高溫度：{max_temp}°C\\n\"\n            forecast_info += f\"最低溫度：{min_temp}°C\\n\\n\"\n        \n        forecast_info += \"資料來源：WeatherAPI.com\"\n        \n        logger.info(f\"成功獲取 {city} 的天氣預報\")\n        return forecast_info\n\n    except httpx.RequestError as e:\n        logger.error(f\"請求錯誤: {e}\")\n        return f\"請求錯誤：無法連接到天氣 API ({str(e)})\"\n    except KeyError as e:\n        logger.error(f\"數據解析錯誤: {e}\")\n        return f\"數據解析錯誤：API 返回的數據格式不符合預期 ({str(e)})\"\n    except Exception as e:\n        logger.error(f\"發生未知錯誤: {e}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_service_info() -> str:\n    \"\"\"獲取天氣服務的基本信息\"\"\"\n    return \"\"\"\n【天氣查詢服務信息】\n\n此服務提供以下功能：\n1. 獲取指定城市的當前天氣信息\n2. 獲取指定城市的天氣預報 (1-7 天)\n3. 自動處理錯誤和異常情況\n\n使用方法：\n- 使用 get_weather 工具獲取當前天氣\n- 使用 get_forecast 工具獲取天氣預報\n- 使用 get_service_info 工具獲取服務信息\n\n參數說明：\n- city: 城市名稱 (例如：Taipei, Tokyo, New York)\n- days: 預報天數 (1-7)\n\n環境配置：\n- WEATHER_API_KEY: WeatherAPI.com 的 API 金鑰\n\n資料來源：WeatherAPI.com\n\"\"\"\n\ndef check_environment() -> bool:\n    \"\"\"檢查必要的環境變數\"\"\"\n    required_vars = [\"WEATHER_API_KEY\"]\n    missing_vars = [var for var in required_vars if not os.getenv(var)]\n    \n    if missing_vars:\n        logger.error(f\"缺少必要的環境變數: {', '.join(missing_vars)}\")\n        return False\n    return True",
+                "name": "WEATHER_SEARCH_TOOL",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [
+                  "os",
+                  "httpx",
+                  "logging",
+                  {
+                    "module": "mcp.server",
+                    "imports": [
+                      "FastMCP"
+                    ]
+                  }
+                ],
+                "has_cancellation_support": false
+              }
+            },
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "AI文生圖工具",
+              "label": "Stable Diffusion生圖小工具",
+              "config": {
+                "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"圖片生成服務\")\n\n@mcp.tool()\nasync def generate_image(\n    prompt: str,\n    width: int = 512,\n    height: int = 512,\n    steps: int = 30\n) -> str:\n    \"\"\"\n    生成圖片的工具\n    \n    Args:\n        prompt (str): 圖片生成的提示詞\n        width (int): 圖片寬度，預設 512\n        height (int): 圖片高度，預設 512\n        steps (int): 生成步驟數，預設 30\n        \n    Returns:\n        str: Markdown 格式的圖片連結\n    \"\"\"\n    logger.info(f\"開始生成圖片，提示詞：{prompt}\")\n    logger.info(f\"參數設置 - 寬度：{width}, 高度：{height}, 步驟數：{steps}\")\n    \n    try:\n        # 檢查 API URL\n        api_url = os.getenv(\"STABLE_DIFFUSION_URL\")\n        if not api_url:\n            return \"錯誤：未設置 STABLE_DIFFUSION_URL\"\n\n        # 設定請求參數\n        generation_params = {\n            \"batch_size\": 1,\n            \"cfg_scale\": 7,\n            \"face_detector\": \"face_yolov8n.pt\",\n            \"hand_detector\": \"hand_yolov8n.pt\",\n            \"height\": height,\n            \"width\": width,\n            \"negative_prompt\": \"\",\n            \"override_settings\": {\n                \"sd_model_checkpoint\": \"sd-v1-5-inpainting.ckpt\"\n            },\n            \"person_detector\": \"person_yolov8n-seg.pt\",\n            \"prompt\": prompt,\n            \"sampler_name\": \"DPM++ 2M\",\n            \"seed\": -1,\n            \"steps\": steps\n        }\n\n        headers = {\n            \"accept\": \"application/json\",\n            \"Content-Type\": \"application/json\"\n        }\n\n        # 使用 httpx 發送非同步請求\n        async with httpx.AsyncClient() as client:\n            response = await client.post(\n                f\"{api_url}/generate\",\n                headers=headers,\n                json=generation_params,\n                timeout=60  # 添加超時設定\n            )\n            \n            if response.status_code != 200:\n                return f\"API 請求錯誤：狀態碼 {response.status_code}\"\n\n            # 直接獲取文本回應，因為 API 直接返回 URL 字符串\n            image_url = response.text.strip()\n            if not image_url:\n                return \"錯誤：API 返回空回應\"\n            \n            # 驗證返回的 URL\n            if not image_url.startswith(('http://', 'https://')):\n                logger.error(f'無效的圖片 URL: {image_url}')\n                return \"錯誤：收到無效的圖片 URL\"\n\n            logger.info(f\"成功獲取圖片 URL：{image_url}\")\n\n            # 返回 Markdown 格式的圖片\n            return f\"\"\"\n### 生成的圖片\n\n![Generated Image]({image_url})\n\n[點擊查看原圖]({image_url})\n\"\"\"\n\n    except httpx.TimeoutException as e:\n        logger.error(f'請求超時: {e}')\n        return \"錯誤：請求超時，請稍後再試\"\n    except httpx.RequestError as e:\n        logger.error(f'API 請求錯誤: {e}')\n        return f\"API 請求錯誤：{str(e)}\"\n    except Exception as e:\n        logger.error(f'發生未知錯誤: {e}')\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_service_info() -> str:\n    \"\"\"獲取圖片生成服務的基本信息\"\"\"\n    api_url = os.getenv(\"STABLE_DIFFUSION_URL\", \"未設置\")\n    return f\"\"\"\n【圖片生成服務信息】\n\n此服務提供以下功能：\n1. 基於文字提示生成圖片\n2. 支持自定義圖片尺寸\n3. 支持調整生成步驟數\n4. 自動處理錯誤和異常情況\n\n使用方法：\n- 使用 generate_image 工具生成圖片\n- 使用 get_service_info 工具獲取服務信息\n\n參數說明：\n- prompt: 圖片生成的提示詞（必填）\n- width: 圖片寬度（預設 512）\n- height: 圖片高度（預設 512）\n- steps: 生成步驟數（預設 30）\n\n環境配置：\n- STABLE_DIFFUSION_URL: {api_url}\n\n服務狀態：{'正常運行中' if check_environment() else '配置不完整'}\n\"\"\"",
+                "name": "GENERATE_IMAGE_TOOL",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [
+                  "os",
+                  "logging",
+                  {
+                    "module": "typing",
+                    "imports": [
+                      "Dict",
+                      "Any",
+                      "List"
+                    ]
+                  },
+                  {
+                    "module": "mcp.server",
+                    "imports": [
+                      "FastMCP"
+                    ]
+                  },
+                  "httpx"
+                ],
+                "has_cancellation_support": false
+              }
+            },
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "LangFlowRAG 工具調用",
+              "label": "知識庫查詢工具調用",
+              "config": {
+                "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"Langflow 聊天服務\")\n\n@mcp.tool()\nasync def get_langflow_response(message: str) -> str:\n    \"\"\"\n    向 Langflow API 發送請求並獲取回應\n    \n    Args:\n        message (str): 用戶輸入的消息\n        \n    Returns:\n        str: Langflow 的回應\n    \"\"\"\n    try:\n        # 檢查 API URL\n        api_url = os.getenv(\"LANGFLOW_API_URL\")\n        api_token = os.getenv(\"LANGFLOW_AUTH_TOKEN\")\n        api_key = os.getenv(\"LANGFLOW_API_KEY\")\n\n        if not api_url:\n            return \"錯誤：未設置 LANGFLOW_API_URL\"\n\n        headers = {\n            \"Content-Type\": \"application/json\",\n            'Authorization': f'Bearer {api_token}',\n            'x-api-key': api_key\n        }\n        \n        request_body = {\n            \"question\": message,\n            \"chat_history\": [],\n            \"input_value\": message,\n            \"output_type\": \"chat\",\n            \"input_type\": \"chat\"\n        }\n        \n        async with httpx.AsyncClient() as client:\n            response = await client.post(api_url, headers=headers, json=request_body)\n            if response.status_code != 200:\n                return f\"API 請求錯誤：狀態碼 {response.status_code}\"\n            data = response.json()\n        \n        # 提取回應內容\n        bot_response = (\n            data.get('result', {}).get('output') or\n            data.get('result', {}).get('response') or\n            data.get('outputs', [{}])[0].get('output') or\n            (data.get('outputs', [{}])[0].get('outputs', [{}])[0].get('artifacts', {}).get('message')) or\n            data.get('outputs', [{}])[0].get('messages', [{}])[0].get('message', '') or\n            '抱歉，我無法理解您的問題。'\n        )\n\n        if isinstance(bot_response, dict):\n            bot_response = (\n                bot_response.get('text') or\n                bot_response.get('content') or\n                bot_response.get('message') or\n                str(bot_response)\n            )\n\n        return bot_response\n\n    except httpx.RequestError as e:\n        return f\"API 請求錯誤：{str(e)}\"\n    except Exception as e:\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_chat_info() -> str:\n    \"\"\"獲取聊天服務的基本信息\"\"\"\n    return \"\"\"\n【Langflow 聊天服務信息】\n\n此服務提供以下功能：\n1. 與 Langflow API 進行對話\n2. 支持多輪對話\n3. 自動處理錯誤和異常情況\n\n使用方法：\n- 直接發送消息即可開始對話\n- 使用 get_langflow_response 工具發送具體請求\n- 使用 get_chat_info 工具獲取服務信息\n\n環境配置：\n- LANGFLOW_API_URL: Langflow API 的地址\n- LANGFLOW_AUTH_TOKEN: 認證令牌\n- LANGFLOW_API_KEY: API 金鑰\n\"\"\"\n\nif __name__ == \"__main__\":\n    mcp.run() ",
+                "name": "LangFlow_RAG",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [
+                  "os",
+                  "httpx",
+                  "json",
+                  "logging",
+                  {
+                    "module": "typing",
+                    "imports": [
+                      "Dict",
+                      "Any",
+                      "List"
+                    ]
+                  },
+                  {
+                    "module": "mcp.server",
+                    "imports": [
+                      "FastMCP"
+                    ]
+                  }
+                ],
+                "has_cancellation_support": false
+              }
+            },
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "EXA搜尋引擎工具調用",
+              "label": "搜尋引擎小工具",
+              "config": {
+                "source_code": "logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"EXA 搜索服務\")\n\n@mcp.tool()\nasync def exa_search(query: str, num_results: int = 5, category: str = \"web\", search_type: str = \"keyword\") -> str:\n    \"\"\"\n    使用 EXA Search API 進行網路搜索\n    \n    Args:\n        query (str): 搜索關鍵字\n        num_results (int): 返回結果數量，預設為5\n        category (str): 搜索類別，預設為\"web\"\n        search_type (str): 搜索類型，預設為\"keyword\"\n        \n    Returns:\n        str: 格式化的搜索結果\n    \"\"\"\n    try:\n        # 檢查 API Key\n        exa_api_key = os.getenv(\"EXA_API_KEY\")\n        if not exa_api_key:\n            return \"錯誤：未設置 EXA_API_KEY\"\n\n        # 初始化 Exa 客戶端\n        exa = Exa(api_key=exa_api_key)\n\n        # 執行搜索\n        search_response = exa.search_and_contents(\n            query,\n            text=True,\n            num_results=num_results,\n            category=category,\n            type=search_type\n        )\n\n        # 取得搜索結果\n        results = search_response.results\n\n        # 格式化結果\n        formatted_content = []\n        for result in results:\n            content = f\"標題: {result.title if hasattr(result, 'title') else '無標題'}\\n\"\n            content += f\"網址: {result.url if hasattr(result, 'url') else '無網址'}\\n\"\n            if hasattr(result, 'text'):\n                # 移除 HTML 標籤\n                import re\n                clean_text = re.sub(r'<[^>]+>', '', result.text)\n                content += f\"內容:\\n{clean_text}\\n\"\n            formatted_content.append(content)\n\n        return \"\\n---\\n\".join(formatted_content) if formatted_content else \"無搜索結果\"\n\n    except Exception as e:\n        logger.error(f\"搜索過程中發生錯誤: {str(e)}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_search_info() -> str:\n    \"\"\"獲取搜索服務的基本信息\"\"\"\n    return \"\"\"\n【EXA 搜索服務信息】\n\n此服務提供以下功能：\n1. 使用 EXA Search API 進行網路搜索\n2. 支持自定義搜索結果數量\n3. 支持自定義搜索類別和類型\n4. 自動格式化搜索結果\n\n使用方法：\n- 使用 exa_search 工具進行搜索，可指定：\n  * 關鍵字 (query)\n  * 結果數量 (num_results)\n  * 搜索類別 (category)\n  * 搜索類型 (search_type)\n- 使用 get_search_info 工具獲取服務信息\n\n環境配置：\n- EXA_API_KEY: EXA Search API 的金鑰\n\n支援的搜索類別：\n- web: 網頁搜索\n- news: 新聞搜索\n- academic: 學術搜索\n\"\"\"\n\nif __name__ == \"__main__\":\n    mcp.run() ",
+                "name": "EXA_SEARCH_TOOL",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [
+                  {
+                    "module": "mcp.server",
+                    "imports": [
+                      "FastMCP"
+                    ]
+                  },
+                  "os",
+                  {
+                    "module": "exa_py",
+                    "imports": [
+                      "Exa"
+                    ]
+                  },
+                  "json",
+                  "logging",
+                  {
+                    "module": "typing",
+                    "imports": [
+                      "Dict",
+                      "Any",
+                      "List"
+                    ]
+                  }
+                ],
+                "has_cancellation_support": false
+              }
+            }
+          ],
+          "handoffs": [],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "你是一個樂於助人的助手。謹慎地解決任務。 \n1. 當使用者有生成圖片的需求，請將使用者的提示詞先進行中翻英再調用GENERATE_IMAGE_TOOL生圖工具。\n2. 當使用者有查詢天氣的需求，請將使用者的輸入城市名稱先進行中翻英再調用WEATHER_SEARCH_TOOL天氣查詢工具。\n3. 當使用者查詢一般資訊時，請優先調用LangFlow工具查找知識庫，若在知識庫裡面找不到才調用exa工具。\n完成後，請說 TERMINATE.",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      }
+    ],
+    "termination_condition": {
+      "provider": "autogen_agentchat.base.OrTerminationCondition",
+      "component_type": "termination",
+      "version": 1,
+      "component_version": 1,
+      "label": "OrTerminationCondition",
+      "config": {
+        "conditions": [
+          {
+            "provider": "autogen_agentchat.conditions.TextMentionTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation if a specific text is mentioned.",
+            "label": "TextMentionTermination",
+            "config": {
+              "text": "TERMINATE"
+            }
+          },
+          {
+            "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+            "label": "MaxMessageTermination",
+            "config": {
+              "max_messages": 10,
+              "include_agent_event": false
+            }
+          }
+        ]
+      }
+    }
+  }
+}

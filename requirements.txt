@@ -1,22 +1,24 @@
 # 基礎套件
-python-dotenv==1.0.0
-httpx==0.26.0
-pillow==10.2.0
-requests==2.31.0
+python-dotenv
+httpx
+pillow
+requests
 
 # MCP 相關套件
-mcp-core>=1.1.3
-mcp-server>=1.1.3
-mcp-server-fetch>=1.1.3
+mcp-core
+mcp-server
+mcp-server-fetch
+mcp
+exa-py
 
 # AutoGen 相關套件（如果需要的話）
-pyautogen>=0.2.0
-autogen-ext>=0.2.0
+pyautogen
+autogen-ext
 
 # 其他套件
-fastapi==0.109.0
-uvicorn==0.27.0
-pydantic==2.5.3
+fastapi
+uvicorn
+pydantic
 openai
 autogen-agentchat
 autogen-core
