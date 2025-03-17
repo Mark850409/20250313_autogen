@@ -6,7 +6,7 @@ WORKDIR /code
 RUN pip install -U gunicorn autogenstudio fastapi uvicorn pydantic
 
 # 為 autogen_api.py 安裝額外的依賴
-RUN pip install autogen autogen-ext autogen-agentchat autogen-core pyautogen mcp exa-py mcp-server mcp-server-fetch
+RUN pip install autogen autogen-ext autogen-agentchat autogen-core pyautogen mcp exa-py
 
 RUN useradd -m -u 100000 user
 USER user
