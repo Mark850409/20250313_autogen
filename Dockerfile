@@ -2,14 +2,6 @@ FROM mcr.microsoft.com/devcontainers/python:3.10
 
 WORKDIR /code
 
-# 安裝系統依賴
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libmcp-dev \
-    libopenmpi-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # 安裝必要的套件
 RUN pip install -U gunicorn autogenstudio fastapi uvicorn pydantic
 
