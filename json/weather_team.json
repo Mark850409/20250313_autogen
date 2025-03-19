@@ -1,0 +1,111 @@
+{
+  "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+  "component_type": "team",
+  "version": 1,
+  "component_version": 1,
+  "description": "RAG知識庫",
+  "label": "天氣群組_17423",
+  "config": {
+    "participants": [
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "一個能夠為大家工作的工具人代理。",
+        "label": "工具人專家",
+        "config": {
+          "name": "assistant_agent_1",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "Chat completion client for OpenAI hosted models.",
+            "label": "OpenAIChatCompletionClient",
+            "config": {
+              "model": "gemini-2.0-flash",
+              "api_key": "AIzaSyC7bQrehwcofwkCoWZzmoVN-wc_jaYw67Q"
+            }
+          },
+          "tools": [
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "用來查詢世界各地的天氣",
+              "label": "天氣查詢小工具",
+              "config": {
+                "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"天氣查詢服務\")\n\n@mcp.tool()\nasync def get_weather(city: str) -> str:\n    \"\"\"\n    獲取指定城市的天氣信息\n    \n    Args:\n        city (str): 城市名稱\n        \n    Returns:\n        str: 天氣信息\n    \"\"\"\n    try:\n        # 檢查 API KEY\n        weather_api_key = os.getenv(\"WEATHER_API_KEY\")\n        if not weather_api_key:\n            return \"錯誤：未設置 WEATHER_API_KEY 環境變數\"\n\n        # 設定 API URL\n        api_url = \"https://api.weatherapi.com/v1/current.json\"\n        \n        # 設定請求頭和參數\n        headers = {\n            \"accept\": \"application/json\"\n        }\n        \n        params = {\n            \"key\": weather_api_key,\n            \"q\": city\n        }\n        \n        logger.info(f\"正在查詢 {city} 的天氣信息...\")\n        \n        # 發送請求\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\n                api_url, \n                headers=headers, \n                params=params, \n                timeout=10\n            )\n            \n            if response.status_code != 200:\n                error_text = response.text\n                logger.error(f\"API 請求錯誤：狀態碼 {response.status_code}, 回應: {error_text}\")\n                return f\"API 請求錯誤：無法獲取 {city} 的天氣信息\"\n            \n            data = response.json()\n        \n        # 解析回應\n        weather_text = data['current']['condition']['text']\n        temperature = data['current']['temp_c']\n        feels_like = data['current']['feelslike_c']\n        humidity = data['current']['humidity']\n        wind_kph = data['current']['wind_kph']\n        wind_dir = data['current']['wind_dir']\n        \n        # 格式化回應\n        weather_info = f\"\"\"\n【{city} 天氣信息】\n\n天氣狀況：{weather_text}\n溫度：{temperature}°C (體感溫度：{feels_like}°C)\n濕度：{humidity}%\n風速：{wind_kph} km/h ({wind_dir})\n\n資料來源：WeatherAPI.com\n查詢時間：{data['current']['last_updated']}\n\"\"\"\n        \n        logger.info(f\"成功獲取 {city} 的天氣信息\")\n        return weather_info\n\n    except httpx.RequestError as e:\n        logger.error(f\"請求錯誤: {e}\")\n        return f\"請求錯誤：無法連接到天氣 API ({str(e)})\"\n    except KeyError as e:\n        logger.error(f\"數據解析錯誤: {e}\")\n        return f\"數據解析錯誤：API 返回的數據格式不符合預期 ({str(e)})\"\n    except Exception as e:\n        logger.error(f\"發生未知錯誤: {e}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\nasync def get_forecast(city: str, days: int = 3) -> str:\n    \"\"\"\n    獲取指定城市的天氣預報\n    \n    Args:\n        city (str): 城市名稱\n        days (int): 預報天數 (1-7)\n        \n    Returns:\n        str: 天氣預報信息\n    \"\"\"\n    try:\n        # 檢查 API KEY\n        weather_api_key = os.getenv(\"WEATHER_API_KEY\")\n        if not weather_api_key:\n            return \"錯誤：未設置 WEATHER_API_KEY 環境變數\"\n\n        # 驗證天數參數\n        if days < 1 or days > 7:\n            return \"錯誤：預報天數必須在 1-7 之間\"\n\n        # 設定 API URL\n        api_url = \"https://api.weatherapi.com/v1/forecast.json\"\n        \n        # 設定請求頭和參數\n        headers = {\n            \"accept\": \"application/json\"\n        }\n        \n        params = {\n            \"key\": weather_api_key,\n            \"q\": city,\n            \"days\": days\n        }\n        \n        logger.info(f\"正在查詢 {city} 的 {days} 天天氣預報...\")\n        \n        # 發送請求\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\n                api_url, \n                headers=headers, \n                params=params, \n                timeout=10\n            )\n            \n            if response.status_code != 200:\n                error_text = response.text\n                logger.error(f\"API 請求錯誤：狀態碼 {response.status_code}, 回應: {error_text}\")\n                return f\"API 請求錯誤：無法獲取 {city} 的天氣預報\"\n            \n            data = response.json()\n        \n        # 解析回應\n        forecast_days = data['forecast']['forecastday']\n        \n        # 格式化回應\n        forecast_info = f\"【{city} {days} 天天氣預報】\\n\\n\"\n        \n        for day in forecast_days:\n            date = day['date']\n            condition = day['day']['condition']['text']\n            max_temp = day['day']['maxtemp_c']\n            min_temp = day['day']['mintemp_c']\n            \n            forecast_info += f\"日期：{date}\\n\"\n            forecast_info += f\"天氣狀況：{condition}\\n\"\n            forecast_info += f\"最高溫度：{max_temp}°C\\n\"\n            forecast_info += f\"最低溫度：{min_temp}°C\\n\\n\"\n        \n        forecast_info += \"資料來源：WeatherAPI.com\"\n        \n        logger.info(f\"成功獲取 {city} 的天氣預報\")\n        return forecast_info\n\n    except httpx.RequestError as e:\n        logger.error(f\"請求錯誤: {e}\")\n        return f\"請求錯誤：無法連接到天氣 API ({str(e)})\"\n    except KeyError as e:\n        logger.error(f\"數據解析錯誤: {e}\")\n        return f\"數據解析錯誤：API 返回的數據格式不符合預期 ({str(e)})\"\n    except Exception as e:\n        logger.error(f\"發生未知錯誤: {e}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_service_info() -> str:\n    \"\"\"獲取天氣服務的基本信息\"\"\"\n    return \"\"\"\n【天氣查詢服務信息】\n\n此服務提供以下功能：\n1. 獲取指定城市的當前天氣信息\n2. 獲取指定城市的天氣預報 (1-7 天)\n3. 自動處理錯誤和異常情況\n\n使用方法：\n- 使用 get_weather 工具獲取當前天氣\n- 使用 get_forecast 工具獲取天氣預報\n- 使用 get_service_info 工具獲取服務信息\n\n參數說明：\n- city: 城市名稱 (例如：Taipei, Tokyo, New York)\n- days: 預報天數 (1-7)\n\n環境配置：\n- WEATHER_API_KEY: WeatherAPI.com 的 API 金鑰\n\n資料來源：WeatherAPI.com\n\"\"\"\n\ndef check_environment() -> bool:\n    \"\"\"檢查必要的環境變數\"\"\"\n    required_vars = [\"WEATHER_API_KEY\"]\n    missing_vars = [var for var in required_vars if not os.getenv(var)]\n    \n    if missing_vars:\n        logger.error(f\"缺少必要的環境變數: {', '.join(missing_vars)}\")\n        return False\n    return True",
+                "name": "WEATHER_SEARCH_TOOL",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [
+                  "os",
+                  "httpx",
+                  "logging",
+                  {
+                    "module": "mcp.server",
+                    "imports": [
+                      "FastMCP"
+                    ]
+                  }
+                ],
+                "has_cancellation_support": false
+              }
+            }
+          ],
+          "handoffs": [],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "你是一個樂於助人的助手。謹慎地解決任務。 \n1. 當使用者有生成圖片的需求，請將使用者的提示詞先進行中翻英再調用GENERATE_IMAGE_TOOL生圖工具。\n2. 當使用者有查詢天氣的需求，請將使用者的輸入城市名稱先進行中翻英再調用WEATHER_SEARCH_TOOL天氣查詢工具。\n3. 當使用者查詢一般資訊時，請優先調用LangFlow工具查找知識庫，若在知識庫裡面找不到才調用exa工具。\n完成後，請說 TERMINATE.",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      }
+    ],
+    "termination_condition": {
+      "provider": "autogen_agentchat.base.OrTerminationCondition",
+      "component_type": "termination",
+      "version": 1,
+      "component_version": 1,
+      "label": "OrTerminationCondition",
+      "config": {
+        "conditions": [
+          {
+            "provider": "autogen_agentchat.conditions.TextMentionTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation if a specific text is mentioned.",
+            "label": "TextMentionTermination",
+            "config": {
+              "text": "TERMINATE"
+            }
+          },
+          {
+            "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+            "label": "MaxMessageTermination",
+            "config": {
+              "max_messages": 10,
+              "include_agent_event": false
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+    "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+    "component_type": "team",
+    "version": 1,
+    "component_version": 1,
+    "description": "RAG知識庫",
+    "label": "AI搜尋群組_17423",
+    "config": {
+      "participants": [
+        {
+          "provider": "autogen_agentchat.agents.AssistantAgent",
+          "component_type": "agent",
+          "version": 1,
+          "component_version": 1,
+          "description": "一個能夠為大家工作的工具人代理。",
+          "label": "工具人專家",
+          "config": {
+            "name": "assistant_agent",
+            "model_client": {
+              "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+              "component_type": "model",
+              "version": 1,
+              "component_version": 1,
+              "description": "Chat completion client for OpenAI hosted models.",
+              "label": "OpenAIChatCompletionClient",
+              "config": {
+                "model": "gemini-2.0-flash",
+                "api_key": "AIzaSyC7bQrehwcofwkCoWZzmoVN-wc_jaYw67Q"
+              }
+            },
+            "tools": [
+              {
+                "provider": "autogen_core.tools.FunctionTool",
+                "component_type": "tool",
+                "version": 1,
+                "component_version": 1,
+                "description": "EXA搜尋引擎工具調用",
+                "label": "搜尋引擎小工具",
+                "config": {
+                  "source_code": "logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"EXA 搜索服務\")\n\n@mcp.tool()\nasync def exa_search(query: str, num_results: int = 5, category: str = \"web\", search_type: str = \"keyword\") -> str:\n    \"\"\"\n    使用 EXA Search API 進行網路搜索\n    \n    Args:\n        query (str): 搜索關鍵字\n        num_results (int): 返回結果數量，預設為5\n        category (str): 搜索類別，預設為\"web\"\n        search_type (str): 搜索類型，預設為\"keyword\"\n        \n    Returns:\n        str: 格式化的搜索結果\n    \"\"\"\n    try:\n        # 檢查 API Key\n        exa_api_key = os.getenv(\"EXA_API_KEY\")\n        if not exa_api_key:\n            return \"錯誤：未設置 EXA_API_KEY\"\n\n        # 初始化 Exa 客戶端\n        exa = Exa(api_key=exa_api_key)\n\n        # 執行搜索\n        search_response = exa.search_and_contents(\n            query,\n            text=True,\n            num_results=num_results,\n            category=category,\n            type=search_type\n        )\n\n        # 取得搜索結果\n        results = search_response.results\n\n        # 格式化結果\n        formatted_content = []\n        for result in results:\n            content = f\"標題: {result.title if hasattr(result, 'title') else '無標題'}\\n\"\n            content += f\"網址: {result.url if hasattr(result, 'url') else '無網址'}\\n\"\n            if hasattr(result, 'text'):\n                # 移除 HTML 標籤\n                import re\n                clean_text = re.sub(r'<[^>]+>', '', result.text)\n                content += f\"內容:\\n{clean_text}\\n\"\n            formatted_content.append(content)\n\n        return \"\\n---\\n\".join(formatted_content) if formatted_content else \"無搜索結果\"\n\n    except Exception as e:\n        logger.error(f\"搜索過程中發生錯誤: {str(e)}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_search_info() -> str:\n    \"\"\"獲取搜索服務的基本信息\"\"\"\n    return \"\"\"\n【EXA 搜索服務信息】\n\n此服務提供以下功能：\n1. 使用 EXA Search API 進行網路搜索\n2. 支持自定義搜索結果數量\n3. 支持自定義搜索類別和類型\n4. 自動格式化搜索結果\n\n使用方法：\n- 使用 exa_search 工具進行搜索，可指定：\n  * 關鍵字 (query)\n  * 結果數量 (num_results)\n  * 搜索類別 (category)\n  * 搜索類型 (search_type)\n- 使用 get_search_info 工具獲取服務信息\n\n環境配置：\n- EXA_API_KEY: EXA Search API 的金鑰\n\n支援的搜索類別：\n- web: 網頁搜索\n- news: 新聞搜索\n- academic: 學術搜索\n\"\"\"\n\nif __name__ == \"__main__\":\n    mcp.run() ",
+                  "name": "EXA_SEARCH_TOOL",
+                  "description": "A simple calculator that performs basic arithmetic operations",
+                  "global_imports": [
+                    {
+                      "module": "mcp.server",
+                      "imports": [
+                        "FastMCP"
+                      ]
+                    },
+                    "os",
+                    {
+                      "module": "exa_py",
+                      "imports": [
+                        "Exa"
+                      ]
+                    },
+                    "json",
+                    "logging",
+                    {
+                      "module": "typing",
+                      "imports": [
+                        "Dict",
+                        "Any",
+                        "List"
+                      ]
+                    }
+                  ],
+                  "has_cancellation_support": false
+                }
+              }
+            ],
+            "handoffs": [],
+            "model_context": {
+              "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+              "component_type": "chat_completion_context",
+              "version": 1,
+              "component_version": 1,
+              "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+              "label": "UnboundedChatCompletionContext",
+              "config": {}
+            },
+            "description": "An agent that provides assistance with ability to use tools.",
+            "system_message": "你是一個樂於助人的助手。謹慎地解決任務。 \n1. 當使用者有生成圖片的需求，請將使用者的提示詞先進行中翻英再調用GENERATE_IMAGE_TOOL生圖工具。\n2. 當使用者有查詢天氣的需求，請將使用者的輸入城市名稱先進行中翻英再調用WEATHER_SEARCH_TOOL天氣查詢工具。\n3. 當使用者查詢一般資訊時，請優先調用LangFlow工具查找知識庫，若在知識庫裡面找不到才調用exa工具。\n完成後，請說 TERMINATE.",
+            "model_client_stream": false,
+            "reflect_on_tool_use": false,
+            "tool_call_summary_format": "{result}"
+          }
+        }
+      ],
+      "termination_condition": {
+        "provider": "autogen_agentchat.base.OrTerminationCondition",
+        "component_type": "termination",
+        "version": 1,
+        "component_version": 1,
+        "label": "OrTerminationCondition",
+        "config": {
+          "conditions": [
+            {
+              "provider": "autogen_agentchat.conditions.TextMentionTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation if a specific text is mentioned.",
+              "label": "TextMentionTermination",
+              "config": {
+                "text": "TERMINATE"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+              "label": "MaxMessageTermination",
+              "config": {
+                "max_messages": 10,
+                "include_agent_event": false
+              }
+            }
+          ]
+        }
+      }
+    }
+  }

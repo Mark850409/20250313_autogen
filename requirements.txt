@@ -1,24 +1,22 @@
-# 基礎套件
 python-dotenv
 httpx
 pillow
 requests
 
-# MCP 相關套件
 mcp-core
 mcp-server
 mcp-server-fetch
 mcp
 exa-py
 
-# AutoGen 相關套件（如果需要的話）
 pyautogen
 autogen-ext
 
-# 其他套件
 fastapi
 uvicorn
 pydantic
 openai
 autogen-agentchat
 autogen-core
+torch
+transformers

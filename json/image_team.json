@@ -1,0 +1,119 @@
+{
+    "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+    "component_type": "team",
+    "version": 1,
+    "component_version": 1,
+    "description": "RAG知識庫",
+    "label": "文生圖群組_17423",
+    "config": {
+      "participants": [
+        {
+          "provider": "autogen_agentchat.agents.AssistantAgent",
+          "component_type": "agent",
+          "version": 1,
+          "component_version": 1,
+          "description": "一個能夠為大家工作的工具人代理。",
+          "label": "工具人專家",
+          "config": {
+            "name": "assistant_agent",
+            "model_client": {
+              "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+              "component_type": "model",
+              "version": 1,
+              "component_version": 1,
+              "description": "Chat completion client for OpenAI hosted models.",
+              "label": "OpenAIChatCompletionClient",
+              "config": {
+                "model": "gemini-2.0-flash",
+                "api_key": "AIzaSyC7bQrehwcofwkCoWZzmoVN-wc_jaYw67Q"
+              }
+            },
+            "tools": [
+              {
+                "provider": "autogen_core.tools.FunctionTool",
+                "component_type": "tool",
+                "version": 1,
+                "component_version": 1,
+                "description": "AI文生圖工具",
+                "label": "Stable Diffusion生圖小工具",
+                "config": {
+                  "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"圖片生成服務\")\n\n@mcp.tool()\nasync def generate_image(\n    prompt: str,\n    width: int = 512,\n    height: int = 512,\n    steps: int = 30\n) -> str:\n    \"\"\"\n    生成圖片的工具\n    \n    Args:\n        prompt (str): 圖片生成的提示詞\n        width (int): 圖片寬度，預設 512\n        height (int): 圖片高度，預設 512\n        steps (int): 生成步驟數，預設 30\n        \n    Returns:\n        str: Markdown 格式的圖片連結\n    \"\"\"\n    logger.info(f\"開始生成圖片，提示詞：{prompt}\")\n    logger.info(f\"參數設置 - 寬度：{width}, 高度：{height}, 步驟數：{steps}\")\n    \n    try:\n        # 檢查 API URL\n        api_url = os.getenv(\"STABLE_DIFFUSION_URL\")\n        if not api_url:\n            return \"錯誤：未設置 STABLE_DIFFUSION_URL\"\n\n        # 設定請求參數\n        generation_params = {\n            \"batch_size\": 1,\n            \"cfg_scale\": 7,\n            \"face_detector\": \"face_yolov8n.pt\",\n            \"hand_detector\": \"hand_yolov8n.pt\",\n            \"height\": height,\n            \"width\": width,\n            \"negative_prompt\": \"\",\n            \"override_settings\": {\n                \"sd_model_checkpoint\": \"sd-v1-5-inpainting.ckpt\"\n            },\n            \"person_detector\": \"person_yolov8n-seg.pt\",\n            \"prompt\": prompt,\n            \"sampler_name\": \"DPM++ 2M\",\n            \"seed\": -1,\n            \"steps\": steps\n        }\n\n        headers = {\n            \"accept\": \"application/json\",\n            \"Content-Type\": \"application/json\"\n        }\n\n        # 使用 httpx 發送非同步請求\n        async with httpx.AsyncClient() as client:\n            response = await client.post(\n                f\"{api_url}/generate\",\n                headers=headers,\n                json=generation_params,\n                timeout=60  # 添加超時設定\n            )\n            \n            if response.status_code != 200:\n                return f\"API 請求錯誤：狀態碼 {response.status_code}\"\n\n            # 直接獲取文本回應，因為 API 直接返回 URL 字符串\n            image_url = response.text.strip()\n            if not image_url:\n                return \"錯誤：API 返回空回應\"\n            \n            # 驗證返回的 URL\n            if not image_url.startswith(('http://', 'https://')):\n                logger.error(f'無效的圖片 URL: {image_url}')\n                return \"錯誤：收到無效的圖片 URL\"\n\n            logger.info(f\"成功獲取圖片 URL：{image_url}\")\n\n            # 返回 Markdown 格式的圖片\n            return f\"\"\"\n### 生成的圖片\n\n![Generated Image]({image_url})\n\n[點擊查看原圖]({image_url})\n\"\"\"\n\n    except httpx.TimeoutException as e:\n        logger.error(f'請求超時: {e}')\n        return \"錯誤：請求超時，請稍後再試\"\n    except httpx.RequestError as e:\n        logger.error(f'API 請求錯誤: {e}')\n        return f\"API 請求錯誤：{str(e)}\"\n    except Exception as e:\n        logger.error(f'發生未知錯誤: {e}')\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_service_info() -> str:\n    \"\"\"獲取圖片生成服務的基本信息\"\"\"\n    api_url = os.getenv(\"STABLE_DIFFUSION_URL\", \"未設置\")\n    return f\"\"\"\n【圖片生成服務信息】\n\n此服務提供以下功能：\n1. 基於文字提示生成圖片\n2. 支持自定義圖片尺寸\n3. 支持調整生成步驟數\n4. 自動處理錯誤和異常情況\n\n使用方法：\n- 使用 generate_image 工具生成圖片\n- 使用 get_service_info 工具獲取服務信息\n\n參數說明：\n- prompt: 圖片生成的提示詞（必填）\n- width: 圖片寬度（預設 512）\n- height: 圖片高度（預設 512）\n- steps: 生成步驟數（預設 30）\n\n環境配置：\n- STABLE_DIFFUSION_URL: {api_url}\n\n服務狀態：{'正常運行中' if check_environment() else '配置不完整'}\n\"\"\"",
+                  "name": "GENERATE_IMAGE_TOOL",
+                  "description": "A simple calculator that performs basic arithmetic operations",
+                  "global_imports": [
+                    "os",
+                    "logging",
+                    {
+                      "module": "typing",
+                      "imports": [
+                        "Dict",
+                        "Any",
+                        "List"
+                      ]
+                    },
+                    {
+                      "module": "mcp.server",
+                      "imports": [
+                        "FastMCP"
+                      ]
+                    },
+                    "httpx"
+                  ],
+                  "has_cancellation_support": false
+                }
+              }
+            ],
+            "handoffs": [],
+            "model_context": {
+              "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+              "component_type": "chat_completion_context",
+              "version": 1,
+              "component_version": 1,
+              "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+              "label": "UnboundedChatCompletionContext",
+              "config": {}
+            },
+            "description": "An agent that provides assistance with ability to use tools.",
+            "system_message": "你是一個樂於助人的助手。謹慎地解決任務。 \n1. 當使用者有生成圖片的需求，請將使用者的提示詞先進行中翻英再調用GENERATE_IMAGE_TOOL生圖工具。\n2. 當使用者有查詢天氣的需求，請將使用者的輸入城市名稱先進行中翻英再調用WEATHER_SEARCH_TOOL天氣查詢工具。\n3. 當使用者查詢一般資訊時，請優先調用LangFlow工具查找知識庫，若在知識庫裡面找不到才調用exa工具。\n完成後，請說 TERMINATE.",
+            "model_client_stream": false,
+            "reflect_on_tool_use": false,
+            "tool_call_summary_format": "{result}"
+          }
+        }
+      ],
+      "termination_condition": {
+        "provider": "autogen_agentchat.base.OrTerminationCondition",
+        "component_type": "termination",
+        "version": 1,
+        "component_version": 1,
+        "label": "OrTerminationCondition",
+        "config": {
+          "conditions": [
+            {
+              "provider": "autogen_agentchat.conditions.TextMentionTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation if a specific text is mentioned.",
+              "label": "TextMentionTermination",
+              "config": {
+                "text": "TERMINATE"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+              "label": "MaxMessageTermination",
+              "config": {
+                "max_messages": 10,
+                "include_agent_event": false
+              }
+            }
+          ]
+        }
+      }
+    }
+  }

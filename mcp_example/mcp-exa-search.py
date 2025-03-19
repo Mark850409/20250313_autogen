@@ -12,35 +12,18 @@ from dotenv import load_dotenv
 # 載入環境變數
 load_dotenv()
 EXA_API_KEY = os.getenv("EXA_API_KEY")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-def get_model_client() -> OpenAIChatCompletionClient:
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+def get_model_client_groq() -> OpenAIChatCompletionClient:  # type: ignore
     return OpenAIChatCompletionClient(
-        model="google/gemini-2.0-flash-001",
-        api_key=OPENROUTER_API_KEY,
-        base_url="https://openrouter.ai/api/v1",
+        model="qwen-2.5-32b",
+        api_key=GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1",
         model_capabilities={
             "json_output": True,
             "vision": False,
             "function_calling": True,
         },
-        context_length=4096,
-        temperature=0.7
     )
-
-# # ollama本地部署
-def get_model_client_ollama() -> OpenAIChatCompletionClient:  # type: ignore
-    return OpenAIChatCompletionClient(
-        model="llama3.2:3b",
-        api_key="ollama",
-        base_url="http://localhost:11434/v1",
-        model_capabilities={
-            "json_output": False,
-            "vision": False,
-            "function_calling": True,
-        },
-    )
-
 async def format_search_results(message) -> str:
     try:
         if isinstance(message, list) and len(message) > 0:
@@ -88,7 +71,7 @@ async def main() -> None:
         csv_path = os.path.join(current_dir, "mbti_personalities.csv")
         
         # 初始化模型客戶端
-        model_client = get_model_client()
+        model_client = get_model_client_groq()
         
         # 設定各種 MCP 服務器參數
         search_server_params = SseServerParams(
@@ -129,7 +112,7 @@ async def main() -> None:
                     "query": "MBTI 16型人格特性、個性、職業、代表人物",
                     "type": "keyword",
                     "text": true,
-                    "numResults": 5
+                    "numResults": 1
                 }
             }"""
         )

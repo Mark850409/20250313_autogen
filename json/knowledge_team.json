@@ -1,0 +1,120 @@
+{
+    "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+    "component_type": "team",
+    "version": 1,
+    "component_version": 1,
+    "description": "RAG知識庫",
+    "label": "LangFlow知識庫群組_17423",
+    "config": {
+      "participants": [
+        {
+          "provider": "autogen_agentchat.agents.AssistantAgent",
+          "component_type": "agent",
+          "version": 1,
+          "component_version": 1,
+          "description": "一個能夠為大家工作的工具人代理。",
+          "label": "工具人專家",
+          "config": {
+            "name": "assistant_agent",
+            "model_client": {
+              "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+              "component_type": "model",
+              "version": 1,
+              "component_version": 1,
+              "description": "Chat completion client for OpenAI hosted models.",
+              "label": "OpenAIChatCompletionClient",
+              "config": {
+                "model": "gemini-2.0-flash",
+                "api_key": "AIzaSyC7bQrehwcofwkCoWZzmoVN-wc_jaYw67Q"
+              }
+            },
+            "tools": [
+              {
+                "provider": "autogen_core.tools.FunctionTool",
+                "component_type": "tool",
+                "version": 1,
+                "component_version": 1,
+                "description": "LangFlowRAG 工具調用",
+                "label": "知識庫查詢工具調用",
+                "config": {
+                  "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"Langflow 聊天服務\")\n\n@mcp.tool()\nasync def get_langflow_response(message: str) -> str:\n    \"\"\"\n    向 Langflow API 發送請求並獲取回應\n    \n    Args:\n        message (str): 用戶輸入的消息\n        \n    Returns:\n        str: Langflow 的回應\n    \"\"\"\n    try:\n        # 檢查 API URL\n        api_url = os.getenv(\"LANGFLOW_API_URL\")\n        api_token = os.getenv(\"LANGFLOW_AUTH_TOKEN\")\n        api_key = os.getenv(\"LANGFLOW_API_KEY\")\n\n        if not api_url:\n            return \"錯誤：未設置 LANGFLOW_API_URL\"\n\n        headers = {\n            \"Content-Type\": \"application/json\",\n            'Authorization': f'Bearer {api_token}',\n            'x-api-key': api_key\n        }\n        \n        request_body = {\n            \"question\": message,\n            \"chat_history\": [],\n            \"input_value\": message,\n            \"output_type\": \"chat\",\n            \"input_type\": \"chat\"\n        }\n        \n        async with httpx.AsyncClient() as client:\n            response = await client.post(api_url, headers=headers, json=request_body)\n            if response.status_code != 200:\n                return f\"API 請求錯誤：狀態碼 {response.status_code}\"\n            data = response.json()\n        \n        # 提取回應內容\n        bot_response = (\n            data.get('result', {}).get('output') or\n            data.get('result', {}).get('response') or\n            data.get('outputs', [{}])[0].get('output') or\n            (data.get('outputs', [{}])[0].get('outputs', [{}])[0].get('artifacts', {}).get('message')) or\n            data.get('outputs', [{}])[0].get('messages', [{}])[0].get('message', '') or\n            '抱歉，我無法理解您的問題。'\n        )\n\n        if isinstance(bot_response, dict):\n            bot_response = (\n                bot_response.get('text') or\n                bot_response.get('content') or\n                bot_response.get('message') or\n                str(bot_response)\n            )\n\n        return bot_response\n\n    except httpx.RequestError as e:\n        return f\"API 請求錯誤：{str(e)}\"\n    except Exception as e:\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_chat_info() -> str:\n    \"\"\"獲取聊天服務的基本信息\"\"\"\n    return \"\"\"\n【Langflow 聊天服務信息】\n\n此服務提供以下功能：\n1. 與 Langflow API 進行對話\n2. 支持多輪對話\n3. 自動處理錯誤和異常情況\n\n使用方法：\n- 直接發送消息即可開始對話\n- 使用 get_langflow_response 工具發送具體請求\n- 使用 get_chat_info 工具獲取服務信息\n\n環境配置：\n- LANGFLOW_API_URL: Langflow API 的地址\n- LANGFLOW_AUTH_TOKEN: 認證令牌\n- LANGFLOW_API_KEY: API 金鑰\n\"\"\"\n\nif __name__ == \"__main__\":\n    mcp.run() ",
+                  "name": "LangFlow_RAG",
+                  "description": "A simple calculator that performs basic arithmetic operations",
+                  "global_imports": [
+                    "os",
+                    "httpx",
+                    "json",
+                    "logging",
+                    {
+                      "module": "typing",
+                      "imports": [
+                        "Dict",
+                        "Any",
+                        "List"
+                      ]
+                    },
+                    {
+                      "module": "mcp.server",
+                      "imports": [
+                        "FastMCP"
+                      ]
+                    }
+                  ],
+                  "has_cancellation_support": false
+                }
+              }
+            ],
+            "handoffs": [],
+            "model_context": {
+              "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+              "component_type": "chat_completion_context",
+              "version": 1,
+              "component_version": 1,
+              "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+              "label": "UnboundedChatCompletionContext",
+              "config": {}
+            },
+            "description": "An agent that provides assistance with ability to use tools.",
+            "system_message": "你是一個樂於助人的助手。謹慎地解決任務。 \n1. 當使用者有生成圖片的需求，請將使用者的提示詞先進行中翻英再調用GENERATE_IMAGE_TOOL生圖工具。\n2. 當使用者有查詢天氣的需求，請將使用者的輸入城市名稱先進行中翻英再調用WEATHER_SEARCH_TOOL天氣查詢工具。\n3. 當使用者查詢一般資訊時，請優先調用LangFlow工具查找知識庫，若在知識庫裡面找不到才調用exa工具。\n完成後，請說 TERMINATE.",
+            "model_client_stream": false,
+            "reflect_on_tool_use": false,
+            "tool_call_summary_format": "{result}"
+          }
+        }
+      ],
+      "termination_condition": {
+        "provider": "autogen_agentchat.base.OrTerminationCondition",
+        "component_type": "termination",
+        "version": 1,
+        "component_version": 1,
+        "label": "OrTerminationCondition",
+        "config": {
+          "conditions": [
+            {
+              "provider": "autogen_agentchat.conditions.TextMentionTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation if a specific text is mentioned.",
+              "label": "TextMentionTermination",
+              "config": {
+                "text": "TERMINATE"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+              "label": "MaxMessageTermination",
+              "config": {
+                "max_messages": 10,
+                "include_agent_event": false
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
