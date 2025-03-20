@@ -15,4 +15,4 @@ WORKDIR $HOME/app
 
 COPY --chown=user . $HOME/app
 
-CMD [ "autogenstudio", "ui", "--host", "0.0.0.0", "--port", "8081","--appdir", "/home/user/app"]
+CMD [ "autogenstudio", "ui", "--host", "0.0.0.0", "--port", "8081","--appdir", "/app/.autogenstudio"]
