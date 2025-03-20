@@ -15,7 +15,7 @@ WORKDIR $HOME/app
 
 COPY --chown=user . $HOME/app
 
-CMD [ "autogenstudio", "ui", "--host", "0.0.0.0", "--port", "8081","--appdir", "/app/.autogenstudio"]
+CMD gunicorn -w $((2 * $(getconf _NPROCESSORS_ONLN) + 1)) --timeout 12600 -k uvicorn.workers.UvicornWorker autogenstudio.web.app:app --bind "0.0.0.0:8081"
 
 # 暴露 AutogenStudio 服務的端口
 EXPOSE 8081
