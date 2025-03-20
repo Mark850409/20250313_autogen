@@ -75,6 +75,7 @@ docker run -d -p 8000:8000 \
 
 1. 啟動autogenstudio的 REST API
 ```bash
+set PYTHONUTF8=1
 autogenstudio serve --team path/to/team.json --port 8084  
 ```
 其中`path/to/team.json`改成AutoGen匯出的json檔案

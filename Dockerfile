@@ -1,35 +1,24 @@
-FROM mcr.microsoft.com/devcontainers/python:3.10
+# 使用適當的基礎映像
+FROM python:3.11-slim
 
-WORKDIR /code
+# 設定工作目錄
+WORKDIR /app
 
-# 安裝必要的套件
-RUN pip install -U gunicorn autogenstudio fastapi uvicorn pydantic
+# 安裝系統依賴
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# 為 autogen_api.py 安裝額外的依賴
-RUN pip install autogen autogen-ext autogen-agentchat autogen-core pyautogen mcp exa-py
+# 安裝 AutogenStudio 相關依賴
+RUN pip install --upgrade pip setuptools wheel
+RUN pip install autogenstudio
 
-RUN useradd -m -u 100000 user
-USER user
-ENV HOME=/home/user 
-ENV PATH=/home/user/.local/bin:$PATH 
-ENV AUTOGENSTUDIO_APPDIR=/home/user/app
-ENV PORT=8080
-ENV TEAM_PORT=8084
+# 創建並掛載目錄
+VOLUME [ "/data" ]
 
-WORKDIR $HOME/app
+# 設定環境變數
+ENV DATA_DIR=/data
 
-COPY --chown=user . $HOME/app
-
-# 創建啟動腳本
-RUN echo '#!/bin/bash\n\
-# 啟動 autogenstudio serve 團隊服務在背景執行\n\
-autogenstudio serve --team $HOME/app/AutoGenTools.json --port $TEAM_PORT &\n\
-\n\
-# 啟動 AutoGen Studio\n\
-gunicorn -w $((2 * $(getconf _NPROCESSORS_ONLN) + 1)) --timeout 12600 -k uvicorn.workers.UvicornWorker autogenstudio.web.app:app --bind "0.0.0.0:$PORT"\n\
-' > $HOME/app/start.sh && chmod +x $HOME/app/start.sh
-
-# 使用啟動腳本
-CMD ["./start.sh"]
-
-EXPOSE $PORT $TEAM_PORT
+# 容器啟動時進入 AutogenStudio
+CMD ["autogenstudio", "--data-dir", "/data"]

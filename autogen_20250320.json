@@ -1,0 +1,1026 @@
+{
+  "id": "gallery_default",
+  "name": "Default Component Gallery",
+  "url": null,
+  "metadata": {
+    "author": "AutoGen Team",
+    "created_at": "2025-02-21T20:43:06.400850",
+    "updated_at": "2025-02-21T20:43:07.501068",
+    "version": "1.0.0",
+    "description": "A default gallery containing basic components for human-in-loop conversations",
+    "tags": [
+      "human-in-loop",
+      "assistant",
+      "web agents"
+    ],
+    "license": "MIT",
+    "homepage": null,
+    "category": "conversation",
+    "last_synced": null
+  },
+  "components": {
+    "agents": [
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "一個能夠為大家工作的工具人代理。",
+        "label": "工具人專家",
+        "config": {
+          "name": "assistant_agent",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "Chat completion client for OpenAI hosted models.",
+            "label": "OpenAIChatCompletionClient",
+            "config": {
+              "model": "gemini-2.0-flash",
+              "api_key": "AIzaSyC7bQrehwcofwkCoWZzmoVN-wc_jaYw67Q"
+            }
+          },
+          "tools": [],
+          "handoffs": [],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "你是一個樂於助人的助手。謹慎地解決任務。 \n1. 當使用者有生成圖片的需求，請將使用者的提示詞先進行中翻英再調用GENERATE_IMAGE_TOOL生圖工具。\n2. 當使用者有查詢天氣的需求，請將使用者的輸入城市名稱先進行中翻英再調用WEATHER_SEARCH_TOOL天氣查詢工具。\n3. 當使用者查詢一般資訊時，請優先調用LangFlow工具查找知識庫，若在知識庫裡面找不到才調用exa工具。\n完成後，請說 TERMINATE.",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      }
+    ],
+    "models": [
+      {
+        "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+        "component_type": "model",
+        "version": 1,
+        "component_version": 1,
+        "description": "OpenAI GPT-4o-mini",
+        "label": "OpenAI GPT-4o Mini",
+        "config": {
+          "model": "gpt-4o-mini"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "provider": "autogen_core.tools.FunctionTool",
+        "component_type": "tool",
+        "version": 1,
+        "component_version": 1,
+        "description": "用來查詢世界各地的天氣",
+        "label": "天氣查詢小工具",
+        "config": {
+          "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"天氣查詢服務\")\n\n@mcp.tool()\nasync def get_weather(city: str) -> str:\n    \"\"\"\n    獲取指定城市的天氣信息\n    \n    Args:\n        city (str): 城市名稱\n        \n    Returns:\n        str: 天氣信息\n    \"\"\"\n    try:\n        # 檢查 API KEY\n        weather_api_key = os.getenv(\"WEATHER_API_KEY\")\n        if not weather_api_key:\n            return \"錯誤：未設置 WEATHER_API_KEY 環境變數\"\n\n        # 設定 API URL\n        api_url = \"https://api.weatherapi.com/v1/current.json\"\n        \n        # 設定請求頭和參數\n        headers = {\n            \"accept\": \"application/json\"\n        }\n        \n        params = {\n            \"key\": weather_api_key,\n            \"q\": city\n        }\n        \n        logger.info(f\"正在查詢 {city} 的天氣信息...\")\n        \n        # 發送請求\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\n                api_url, \n                headers=headers, \n                params=params, \n                timeout=10\n            )\n            \n            if response.status_code != 200:\n                error_text = response.text\n                logger.error(f\"API 請求錯誤：狀態碼 {response.status_code}, 回應: {error_text}\")\n                return f\"API 請求錯誤：無法獲取 {city} 的天氣信息\"\n            \n            data = response.json()\n        \n        # 解析回應\n        weather_text = data['current']['condition']['text']\n        temperature = data['current']['temp_c']\n        feels_like = data['current']['feelslike_c']\n        humidity = data['current']['humidity']\n        wind_kph = data['current']['wind_kph']\n        wind_dir = data['current']['wind_dir']\n        \n        # 格式化回應\n        weather_info = f\"\"\"\n【{city} 天氣信息】\n\n天氣狀況：{weather_text}\n溫度：{temperature}°C (體感溫度：{feels_like}°C)\n濕度：{humidity}%\n風速：{wind_kph} km/h ({wind_dir})\n\n資料來源：WeatherAPI.com\n查詢時間：{data['current']['last_updated']}\n\"\"\"\n        \n        logger.info(f\"成功獲取 {city} 的天氣信息\")\n        return weather_info\n\n    except httpx.RequestError as e:\n        logger.error(f\"請求錯誤: {e}\")\n        return f\"請求錯誤：無法連接到天氣 API ({str(e)})\"\n    except KeyError as e:\n        logger.error(f\"數據解析錯誤: {e}\")\n        return f\"數據解析錯誤：API 返回的數據格式不符合預期 ({str(e)})\"\n    except Exception as e:\n        logger.error(f\"發生未知錯誤: {e}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\nasync def get_forecast(city: str, days: int = 3) -> str:\n    \"\"\"\n    獲取指定城市的天氣預報\n    \n    Args:\n        city (str): 城市名稱\n        days (int): 預報天數 (1-7)\n        \n    Returns:\n        str: 天氣預報信息\n    \"\"\"\n    try:\n        # 檢查 API KEY\n        weather_api_key = os.getenv(\"WEATHER_API_KEY\")\n        if not weather_api_key:\n            return \"錯誤：未設置 WEATHER_API_KEY 環境變數\"\n\n        # 驗證天數參數\n        if days < 1 or days > 7:\n            return \"錯誤：預報天數必須在 1-7 之間\"\n\n        # 設定 API URL\n        api_url = \"https://api.weatherapi.com/v1/forecast.json\"\n        \n        # 設定請求頭和參數\n        headers = {\n            \"accept\": \"application/json\"\n        }\n        \n        params = {\n            \"key\": weather_api_key,\n            \"q\": city,\n            \"days\": days\n        }\n        \n        logger.info(f\"正在查詢 {city} 的 {days} 天天氣預報...\")\n        \n        # 發送請求\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\n                api_url, \n                headers=headers, \n                params=params, \n                timeout=10\n            )\n            \n            if response.status_code != 200:\n                error_text = response.text\n                logger.error(f\"API 請求錯誤：狀態碼 {response.status_code}, 回應: {error_text}\")\n                return f\"API 請求錯誤：無法獲取 {city} 的天氣預報\"\n            \n            data = response.json()\n        \n        # 解析回應\n        forecast_days = data['forecast']['forecastday']\n        \n        # 格式化回應\n        forecast_info = f\"【{city} {days} 天天氣預報】\\n\\n\"\n        \n        for day in forecast_days:\n            date = day['date']\n            condition = day['day']['condition']['text']\n            max_temp = day['day']['maxtemp_c']\n            min_temp = day['day']['mintemp_c']\n            \n            forecast_info += f\"日期：{date}\\n\"\n            forecast_info += f\"天氣狀況：{condition}\\n\"\n            forecast_info += f\"最高溫度：{max_temp}°C\\n\"\n            forecast_info += f\"最低溫度：{min_temp}°C\\n\\n\"\n        \n        forecast_info += \"資料來源：WeatherAPI.com\"\n        \n        logger.info(f\"成功獲取 {city} 的天氣預報\")\n        return forecast_info\n\n    except httpx.RequestError as e:\n        logger.error(f\"請求錯誤: {e}\")\n        return f\"請求錯誤：無法連接到天氣 API ({str(e)})\"\n    except KeyError as e:\n        logger.error(f\"數據解析錯誤: {e}\")\n        return f\"數據解析錯誤：API 返回的數據格式不符合預期 ({str(e)})\"\n    except Exception as e:\n        logger.error(f\"發生未知錯誤: {e}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_service_info() -> str:\n    \"\"\"獲取天氣服務的基本信息\"\"\"\n    return \"\"\"\n【天氣查詢服務信息】\n\n此服務提供以下功能：\n1. 獲取指定城市的當前天氣信息\n2. 獲取指定城市的天氣預報 (1-7 天)\n3. 自動處理錯誤和異常情況\n\n使用方法：\n- 使用 get_weather 工具獲取當前天氣\n- 使用 get_forecast 工具獲取天氣預報\n- 使用 get_service_info 工具獲取服務信息\n\n參數說明：\n- city: 城市名稱 (例如：Taipei, Tokyo, New York)\n- days: 預報天數 (1-7)\n\n環境配置：\n- WEATHER_API_KEY: WeatherAPI.com 的 API 金鑰\n\n資料來源：WeatherAPI.com\n\"\"\"\n\ndef check_environment() -> bool:\n    \"\"\"檢查必要的環境變數\"\"\"\n    required_vars = [\"WEATHER_API_KEY\"]\n    missing_vars = [var for var in required_vars if not os.getenv(var)]\n    \n    if missing_vars:\n        logger.error(f\"缺少必要的環境變數: {', '.join(missing_vars)}\")\n        return False\n    return True",
+          "name": "WEATHER_SEARCH_TOOL",
+          "description": "A simple calculator that performs basic arithmetic operations",
+          "global_imports": [
+            "os",
+            "httpx",
+            "logging",
+            {
+              "module": "mcp.server",
+              "imports": [
+                "FastMCP"
+              ]
+            }
+          ],
+          "has_cancellation_support": false
+        }
+      },
+      {
+        "provider": "autogen_core.tools.FunctionTool",
+        "component_type": "tool",
+        "version": 1,
+        "component_version": 1,
+        "description": "AI文生圖工具",
+        "label": "Stable Diffusion生圖小工具",
+        "config": {
+          "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"圖片生成服務\")\n\n@mcp.tool()\nasync def generate_image(\n    prompt: str,\n    width: int = 512,\n    height: int = 512,\n    steps: int = 30\n) -> str:\n    \"\"\"\n    生成圖片的工具\n    \n    Args:\n        prompt (str): 圖片生成的提示詞\n        width (int): 圖片寬度，預設 512\n        height (int): 圖片高度，預設 512\n        steps (int): 生成步驟數，預設 30\n        \n    Returns:\n        str: Markdown 格式的圖片連結\n    \"\"\"\n    logger.info(f\"開始生成圖片，提示詞：{prompt}\")\n    logger.info(f\"參數設置 - 寬度：{width}, 高度：{height}, 步驟數：{steps}\")\n    \n    try:\n        # 檢查 API URL\n        api_url = os.getenv(\"STABLE_DIFFUSION_URL\")\n        if not api_url:\n            return \"錯誤：未設置 STABLE_DIFFUSION_URL\"\n\n        # 設定請求參數\n        generation_params = {\n            \"batch_size\": 1,\n            \"cfg_scale\": 7,\n            \"face_detector\": \"face_yolov8n.pt\",\n            \"hand_detector\": \"hand_yolov8n.pt\",\n            \"height\": height,\n            \"width\": width,\n            \"negative_prompt\": \"\",\n            \"override_settings\": {\n                \"sd_model_checkpoint\": \"sd-v1-5-inpainting.ckpt\"\n            },\n            \"person_detector\": \"person_yolov8n-seg.pt\",\n            \"prompt\": prompt,\n            \"sampler_name\": \"DPM++ 2M\",\n            \"seed\": -1,\n            \"steps\": steps\n        }\n\n        headers = {\n            \"accept\": \"application/json\",\n            \"Content-Type\": \"application/json\"\n        }\n\n        # 使用 httpx 發送非同步請求\n        async with httpx.AsyncClient() as client:\n            response = await client.post(\n                f\"{api_url}/generate\",\n                headers=headers,\n                json=generation_params,\n                timeout=60  # 添加超時設定\n            )\n            \n            if response.status_code != 200:\n                return f\"API 請求錯誤：狀態碼 {response.status_code}\"\n\n            # 直接獲取文本回應，因為 API 直接返回 URL 字符串\n            image_url = response.text.strip()\n            if not image_url:\n                return \"錯誤：API 返回空回應\"\n            \n            # 驗證返回的 URL\n            if not image_url.startswith(('http://', 'https://')):\n                logger.error(f'無效的圖片 URL: {image_url}')\n                return \"錯誤：收到無效的圖片 URL\"\n\n            logger.info(f\"成功獲取圖片 URL：{image_url}\")\n\n            # 返回 Markdown 格式的圖片\n            return f\"\"\"\n### 生成的圖片\n\n![Generated Image]({image_url})\n\n[點擊查看原圖]({image_url})\n\"\"\"\n\n    except httpx.TimeoutException as e:\n        logger.error(f'請求超時: {e}')\n        return \"錯誤：請求超時，請稍後再試\"\n    except httpx.RequestError as e:\n        logger.error(f'API 請求錯誤: {e}')\n        return f\"API 請求錯誤：{str(e)}\"\n    except Exception as e:\n        logger.error(f'發生未知錯誤: {e}')\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_service_info() -> str:\n    \"\"\"獲取圖片生成服務的基本信息\"\"\"\n    api_url = os.getenv(\"STABLE_DIFFUSION_URL\", \"未設置\")\n    return f\"\"\"\n【圖片生成服務信息】\n\n此服務提供以下功能：\n1. 基於文字提示生成圖片\n2. 支持自定義圖片尺寸\n3. 支持調整生成步驟數\n4. 自動處理錯誤和異常情況\n\n使用方法：\n- 使用 generate_image 工具生成圖片\n- 使用 get_service_info 工具獲取服務信息\n\n參數說明：\n- prompt: 圖片生成的提示詞（必填）\n- width: 圖片寬度（預設 512）\n- height: 圖片高度（預設 512）\n- steps: 生成步驟數（預設 30）\n\n環境配置：\n- STABLE_DIFFUSION_URL: {api_url}\n\n服務狀態：{'正常運行中' if check_environment() else '配置不完整'}\n\"\"\"",
+          "name": "GENERATE_IMAGE_TOOL",
+          "description": "A simple calculator that performs basic arithmetic operations",
+          "global_imports": [
+            "os",
+            "logging",
+            {
+              "module": "typing",
+              "imports": [
+                "Dict",
+                "Any",
+                "List"
+              ]
+            },
+            {
+              "module": "mcp.server",
+              "imports": [
+                "FastMCP"
+              ]
+            },
+            "httpx"
+          ],
+          "has_cancellation_support": false
+        }
+      },
+      {
+        "provider": "autogen_core.tools.FunctionTool",
+        "component_type": "tool",
+        "version": 1,
+        "component_version": 1,
+        "description": "EXA搜尋引擎工具調用",
+        "label": "搜尋引擎小工具",
+        "config": {
+          "source_code": "logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"EXA 搜索服務\")\n\n@mcp.tool()\nasync def exa_search(query: str, num_results: int = 5, category: str = \"web\", search_type: str = \"keyword\") -> str:\n    \"\"\"\n    使用 EXA Search API 進行網路搜索\n    \n    Args:\n        query (str): 搜索關鍵字\n        num_results (int): 返回結果數量，預設為5\n        category (str): 搜索類別，預設為\"web\"\n        search_type (str): 搜索類型，預設為\"keyword\"\n        \n    Returns:\n        str: 格式化的搜索結果\n    \"\"\"\n    try:\n        # 檢查 API Key\n        exa_api_key = os.getenv(\"EXA_API_KEY\")\n        if not exa_api_key:\n            return \"錯誤：未設置 EXA_API_KEY\"\n\n        # 初始化 Exa 客戶端\n        exa = Exa(api_key=exa_api_key)\n\n        # 執行搜索\n        search_response = exa.search_and_contents(\n            query,\n            text=True,\n            num_results=num_results,\n            category=category,\n            type=search_type\n        )\n\n        # 取得搜索結果\n        results = search_response.results\n\n        # 格式化結果\n        formatted_content = []\n        for result in results:\n            content = f\"標題: {result.title if hasattr(result, 'title') else '無標題'}\\n\"\n            content += f\"網址: {result.url if hasattr(result, 'url') else '無網址'}\\n\"\n            if hasattr(result, 'text'):\n                # 移除 HTML 標籤\n                import re\n                clean_text = re.sub(r'<[^>]+>', '', result.text)\n                content += f\"內容:\\n{clean_text}\\n\"\n            formatted_content.append(content)\n\n        return \"\\n---\\n\".join(formatted_content) if formatted_content else \"無搜索結果\"\n\n    except Exception as e:\n        logger.error(f\"搜索過程中發生錯誤: {str(e)}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_search_info() -> str:\n    \"\"\"獲取搜索服務的基本信息\"\"\"\n    return \"\"\"\n【EXA 搜索服務信息】\n\n此服務提供以下功能：\n1. 使用 EXA Search API 進行網路搜索\n2. 支持自定義搜索結果數量\n3. 支持自定義搜索類別和類型\n4. 自動格式化搜索結果\n\n使用方法：\n- 使用 exa_search 工具進行搜索，可指定：\n  * 關鍵字 (query)\n  * 結果數量 (num_results)\n  * 搜索類別 (category)\n  * 搜索類型 (search_type)\n- 使用 get_search_info 工具獲取服務信息\n\n環境配置：\n- EXA_API_KEY: EXA Search API 的金鑰\n\n支援的搜索類別：\n- web: 網頁搜索\n- news: 新聞搜索\n- academic: 學術搜索\n\"\"\"\n\nif __name__ == \"__main__\":\n    mcp.run() ",
+          "name": "EXA_SEARCH_TOOL",
+          "description": "A simple calculator that performs basic arithmetic operations",
+          "global_imports": [
+            {
+              "module": "mcp.server",
+              "imports": [
+                "FastMCP"
+              ]
+            },
+            "os",
+            {
+              "module": "exa_py",
+              "imports": [
+                "Exa"
+              ]
+            },
+            "json",
+            "logging",
+            {
+              "module": "typing",
+              "imports": [
+                "Dict",
+                "Any",
+                "List"
+              ]
+            }
+          ],
+          "has_cancellation_support": false
+        }
+      },
+      {
+        "provider": "autogen_core.tools.FunctionTool",
+        "component_type": "tool",
+        "version": 1,
+        "component_version": 1,
+        "description": "LangFlowRAG 工具調用",
+        "label": "知識庫查詢工具調用",
+        "config": {
+          "source_code": "# 設置日誌\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')\nlogger = logging.getLogger(__name__)\n\n\n# 創建一個 MCP 服務器\nmcp = FastMCP(\"Langflow 聊天服務\")\n\n\n@mcp.tool()\nasync def get_langflow_response(message: str) -> str:\n    \"\"\"\n    根據訊息內容選擇適當的 Langflow API 發送請求並獲取回應\n    \n    Args:\n        message (str): 用戶輸入的消息\n        \n    Returns:\n        str: Langflow 的回應\n    \"\"\"\n    try:\n        # 直接在函數中判斷 API URL\n        api_token = os.getenv(\"LANGFLOW_AUTH_TOKEN\")\n        api_key = os.getenv(\"LANGFLOW_API_KEY\")\n        \n        # 判斷使用哪個 API URL\n        if any(keyword in message for keyword in [\"韓國\", \"男團\", \"女團\", \"偶像\", \"Kpop\"]):\n            api_url = os.getenv(\"LANGFLOW_API_URL_KOREA\")\n        elif any(keyword in message for keyword in [\"MBTI\", \"人格\", \"性格\", \"測驗\", \"測試\"]):\n            api_url = os.getenv(\"LANGFLOW_API_URL_MBTI\")\n        elif any(keyword in message for keyword in [\"輪播圖\", \"快速提問\", \"知識庫管理\", \"LangFlow串接\"]):\n            api_url = os.getenv(\"LANGFLOW_API_URL_ORDER\")\n        else:\n            api_url = os.getenv(\"LANGFLOW_API_URL_GENERAL\")\n\n        if not api_url:\n            return \"錯誤：未設置對應的 API URL\"\n\n        headers = {\n            \"Content-Type\": \"application/json\",\n            'Authorization': f'Bearer {api_token}',\n            'x-api-key': api_key\n        }\n        \n        request_body = {\n            \"question\": message,\n            \"chat_history\": [],\n            \"input_value\": message,\n            \"output_type\": \"chat\",\n            \"input_type\": \"chat\"\n        }\n        \n        try:\n            async with httpx.AsyncClient() as client:\n                response = await client.post(api_url, headers=headers, json=request_body)\n                if response.status_code != 200:\n                    return f\"API 請求錯誤：狀態碼 {response.status_code}\"\n                data = response.json()\n            \n            # 提取回應內容\n            bot_response = (\n                data.get('result', {}).get('output') or\n                data.get('result', {}).get('response') or\n                data.get('outputs', [{}])[0].get('output') or\n                (data.get('outputs', [{}])[0].get('outputs', [{}])[0].get('artifacts', {}).get('message')) or\n                data.get('outputs', [{}])[0].get('messages', [{}])[0].get('message', '') or\n                None\n            )\n\n            if bot_response:\n                if isinstance(bot_response, dict):\n                    bot_response = (\n                        bot_response.get('text') or\n                        bot_response.get('content') or\n                        bot_response.get('message') or\n                        str(bot_response)\n                    )\n                return bot_response\n            \n            return \"無法獲取有效回應\"\n                \n        except httpx.RequestError as e:\n            logger.error(f\"API {api_url} 請求失敗：{str(e)}\")\n            return f\"API 請求失敗：{str(e)}\"\n\n    except Exception as e:\n        logger.error(f\"發生錯誤：{str(e)}\")\n        return f\"發生錯誤：{str(e)}\"\n\n@mcp.tool()\ndef get_chat_info() -> str:\n    \"\"\"獲取聊天服務的基本信息\"\"\"\n    return \"\"\"\n【Langflow 聊天服務信息】\n\n此服務提供以下功能：\n1. 與 Langflow API 進行對話\n2. 支持多輪對話\n3. 自動處理錯誤和異常情況\n\n使用方法：\n- 直接發送消息即可開始對話\n- 使用 get_langflow_response 工具發送具體請求\n- 使用 get_chat_info 工具獲取服務信息\n\n環境配置：\n- LANGFLOW_API_URL: Langflow API 的地址\n- LANGFLOW_AUTH_TOKEN: 認證令牌\n- LANGFLOW_API_KEY: API 金鑰\n\"\"\"",
+          "name": "LangFlow_RAG",
+          "description": "A simple calculator that performs basic arithmetic operations",
+          "global_imports": [
+            "os",
+            "httpx",
+            "json",
+            "logging",
+            {
+              "module": "mcp.server",
+              "imports": [
+                "FastMCP"
+              ]
+            },
+            {
+              "module": "typing",
+              "imports": [
+                "Dict",
+                "Any",
+                "List",
+                "Tuple"
+              ]
+            }
+          ],
+          "has_cancellation_support": false
+        }
+      }
+    ],
+    "terminations": [
+      {
+        "provider": "autogen_agentchat.conditions.TextMentionTermination",
+        "component_type": "termination",
+        "version": 1,
+        "component_version": 1,
+        "description": "Terminate the conversation if a specific text is mentioned.",
+        "label": "TextMentionTermination",
+        "config": {
+          "text": "TERMINATE"
+        }
+      },
+      {
+        "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+        "component_type": "termination",
+        "version": 1,
+        "component_version": 1,
+        "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+        "label": "MaxMessageTermination",
+        "config": {
+          "max_messages": 10,
+          "include_agent_event": false
+        }
+      },
+      {
+        "provider": "autogen_agentchat.base.OrTerminationCondition",
+        "component_type": "termination",
+        "version": 1,
+        "component_version": 1,
+        "description": "Termination condition that ends the conversation when either a message contains 'TERMINATE' or the maximum number of messages is reached.",
+        "label": "OR Termination",
+        "config": {
+          "conditions": [
+            {
+              "provider": "autogen_agentchat.conditions.TextMentionTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation if a specific text is mentioned.",
+              "label": "TextMentionTermination",
+              "config": {
+                "text": "TERMINATE"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+              "component_type": "termination",
+              "version": 1,
+              "component_version": 1,
+              "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+              "label": "MaxMessageTermination",
+              "config": {
+                "max_messages": 10,
+                "include_agent_event": false
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "teams": [
+      {
+        "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+        "component_type": "team",
+        "version": 1,
+        "component_version": 1,
+        "description": "A single AssistantAgent (with a calculator tool) in a RoundRobinGroupChat team. ",
+        "label": "RoundRobin Team",
+        "config": {
+          "participants": [
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "assistant_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "model": "gpt-4o-mini"
+                  }
+                },
+                "tools": [
+                  {
+                    "provider": "autogen_core.tools.FunctionTool",
+                    "component_type": "tool",
+                    "version": 1,
+                    "component_version": 1,
+                    "description": "Create custom tools by wrapping standard Python functions.",
+                    "label": "FunctionTool",
+                    "config": {
+                      "source_code": "def calculator(a: float, b: float, operator: str) -> str:\n    try:\n        if operator == \"+\":\n            return str(a + b)\n        elif operator == \"-\":\n            return str(a - b)\n        elif operator == \"*\":\n            return str(a * b)\n        elif operator == \"/\":\n            if b == 0:\n                return \"Error: Division by zero\"\n            return str(a / b)\n        else:\n            return \"Error: Invalid operator. Please use +, -, *, or /\"\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n",
+                      "name": "calculator",
+                      "description": "A simple calculator that performs basic arithmetic operations",
+                      "global_imports": [],
+                      "has_cancellation_support": false
+                    }
+                  }
+                ],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "An agent that provides assistance with ability to use tools.",
+                "system_message": "You are a helpful assistant. Solve tasks carefully. When done, say TERMINATE.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            }
+          ],
+          "termination_condition": {
+            "provider": "autogen_agentchat.base.OrTerminationCondition",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "label": "OrTerminationCondition",
+            "config": {
+              "conditions": [
+                {
+                  "provider": "autogen_agentchat.conditions.TextMentionTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation if a specific text is mentioned.",
+                  "label": "TextMentionTermination",
+                  "config": {
+                    "text": "TERMINATE"
+                  }
+                },
+                {
+                  "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+                  "label": "MaxMessageTermination",
+                  "config": {
+                    "max_messages": 10,
+                    "include_agent_event": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "provider": "autogen_agentchat.teams.SelectorGroupChat",
+        "component_type": "team",
+        "version": 1,
+        "component_version": 1,
+        "description": "A team with 2 agents - an AssistantAgent (with a calculator tool) and a CriticAgent in a SelectorGroupChat team.",
+        "label": "Selector Team",
+        "config": {
+          "participants": [
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "assistant_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "model": "gpt-4o-mini"
+                  }
+                },
+                "tools": [
+                  {
+                    "provider": "autogen_core.tools.FunctionTool",
+                    "component_type": "tool",
+                    "version": 1,
+                    "component_version": 1,
+                    "description": "Create custom tools by wrapping standard Python functions.",
+                    "label": "FunctionTool",
+                    "config": {
+                      "source_code": "def calculator(a: float, b: float, operator: str) -> str:\n    try:\n        if operator == \"+\":\n            return str(a + b)\n        elif operator == \"-\":\n            return str(a - b)\n        elif operator == \"*\":\n            return str(a * b)\n        elif operator == \"/\":\n            if b == 0:\n                return \"Error: Division by zero\"\n            return str(a / b)\n        else:\n            return \"Error: Invalid operator. Please use +, -, *, or /\"\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n",
+                      "name": "calculator",
+                      "description": "A simple calculator that performs basic arithmetic operations",
+                      "global_imports": [],
+                      "has_cancellation_support": false
+                    }
+                  }
+                ],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "An agent that provides assistance with ability to use tools.",
+                "system_message": "You are a helpful assistant. Solve tasks carefully. When done, say TERMINATE.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "critic_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "model": "gpt-4o-mini"
+                  }
+                },
+                "tools": [],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "an agent that critiques and improves the assistant's output",
+                "system_message": "You are a helpful assistant. Critique the assistant's output and suggest improvements.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            }
+          ],
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "Chat completion client for OpenAI hosted models.",
+            "label": "OpenAIChatCompletionClient",
+            "config": {
+              "model": "gpt-4o-mini"
+            }
+          },
+          "termination_condition": {
+            "provider": "autogen_agentchat.base.OrTerminationCondition",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "label": "OrTerminationCondition",
+            "config": {
+              "conditions": [
+                {
+                  "provider": "autogen_agentchat.conditions.TextMentionTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation if a specific text is mentioned.",
+                  "label": "TextMentionTermination",
+                  "config": {
+                    "text": "TERMINATE"
+                  }
+                },
+                {
+                  "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+                  "label": "MaxMessageTermination",
+                  "config": {
+                    "max_messages": 10,
+                    "include_agent_event": false
+                  }
+                }
+              ]
+            }
+          },
+          "selector_prompt": "You are in a role play game. The following roles are available:\n{roles}.\nRead the following conversation. Then select the next role from {participants} to play. Only return the role.\n\n{history}\n\nRead the above conversation. Then select the next role from {participants} to play. Only return the role.\n",
+          "allow_repeated_speaker": false,
+          "max_selector_attempts": 3
+        }
+      },
+      {
+        "provider": "autogen_agentchat.teams.SelectorGroupChat",
+        "component_type": "team",
+        "version": 1,
+        "component_version": 1,
+        "description": "A team with 3 agents - a Web Surfer agent that can browse the web, a Verification Assistant that verifies and summarizes information, and a User Proxy that provides human feedback when needed.",
+        "label": "Web Agent Team (Operator)",
+        "config": {
+          "participants": [
+            {
+              "provider": "autogen_ext.agents.web_surfer.MultimodalWebSurfer",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "MultimodalWebSurfer is a multimodal agent that acts as a web surfer that can search the web and visit web pages.",
+              "label": "MultimodalWebSurfer",
+              "config": {
+                "name": "websurfer_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "model": "gpt-4o-mini"
+                  }
+                },
+                "description": "an agent that solves tasks by browsing the web",
+                "headless": true,
+                "start_page": "https://www.bing.com/",
+                "animate_actions": false,
+                "to_save_screenshots": false,
+                "use_ocr": false,
+                "to_resize_viewport": true
+              }
+            },
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "assistant_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "model": "gpt-4o-mini"
+                  }
+                },
+                "tools": [],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "an agent that verifies and summarizes information",
+                "system_message": "You are a task verification assistant who is working with a web surfer agent to solve tasks. At each point, check if the task has been completed as requested by the user. If the websurfer_agent responds and the task has not yet been completed, respond with what is left to do and then say 'keep going'. If and only when the task has been completed, summarize and present a final answer that directly addresses the user task in detail and then respond with TERMINATE.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.agents.UserProxyAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that can represent a human user through an input function.",
+              "label": "UserProxyAgent",
+              "config": {
+                "name": "user_proxy",
+                "description": "a human user that should be consulted only when the assistant_agent is unable to verify the information provided by the websurfer_agent"
+              }
+            }
+          ],
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "Chat completion client for OpenAI hosted models.",
+            "label": "OpenAIChatCompletionClient",
+            "config": {
+              "model": "gpt-4o-mini"
+            }
+          },
+          "termination_condition": {
+            "provider": "autogen_agentchat.base.OrTerminationCondition",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "label": "OrTerminationCondition",
+            "config": {
+              "conditions": [
+                {
+                  "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+                  "label": "MaxMessageTermination",
+                  "config": {
+                    "max_messages": 20,
+                    "include_agent_event": false
+                  }
+                },
+                {
+                  "provider": "autogen_agentchat.conditions.TextMentionTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation if a specific text is mentioned.",
+                  "label": "TextMentionTermination",
+                  "config": {
+                    "text": "TERMINATE"
+                  }
+                }
+              ]
+            }
+          },
+          "selector_prompt": "You are the cordinator of role play game. The following roles are available:\n{roles}. Given a task, the websurfer_agent will be tasked to address it by browsing the web and providing information.  The assistant_agent will be tasked with verifying the information provided by the websurfer_agent and summarizing the information to present a final answer to the user. If the task  needs assistance from a human user (e.g., providing feedback, preferences, or the task is stalled), you should select the user_proxy role to provide the necessary information.\n\nRead the following conversation. Then select the next role from {participants} to play. Only return the role.\n\n{history}\n\nRead the above conversation. Then select the next role from {participants} to play. Only return the role.",
+          "allow_repeated_speaker": false,
+          "max_selector_attempts": 3
+        }
+      },
+      {
+        "provider": "autogen_agentchat.teams.SelectorGroupChat",
+        "component_type": "team",
+        "version": 1,
+        "component_version": 1,
+        "description": "A team with 3 agents - a Research Assistant that performs web searches and analyzes information, a Verifier that ensures research quality and completeness, and a Summary Agent that provides a detailed markdown summary of the research as a report to the user.",
+        "label": "Deep Research Team",
+        "config": {
+          "participants": [
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "research_assistant",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "temperature": 0.7,
+                    "model": "gpt-4o"
+                  }
+                },
+                "tools": [
+                  {
+                    "provider": "autogen_core.tools.FunctionTool",
+                    "component_type": "tool",
+                    "version": 1,
+                    "component_version": 1,
+                    "description": "Create custom tools by wrapping standard Python functions.",
+                    "label": "FunctionTool",
+                    "config": {
+                      "source_code": "async def google_search(\n    query: str,\n    num_results: int = 3,\n    include_snippets: bool = True,\n    include_content: bool = True,\n    content_max_length: Optional[int] = 10000,\n    language: str = \"en\",\n    country: Optional[str] = None,\n    safe_search: bool = True,\n) -> List[Dict[str, str]]:\n    \"\"\"\n    Perform a Google search using the Custom Search API and optionally fetch webpage content.\n\n    Args:\n        query: Search query string\n        num_results: Number of results to return (max 10)\n        include_snippets: Include result snippets in output\n        include_content: Include full webpage content in markdown format\n        content_max_length: Maximum length of webpage content (if included)\n        language: Language code for search results (e.g., en, es, fr)\n        country: Optional country code for search results (e.g., us, uk)\n        safe_search: Enable safe search filtering\n\n    Returns:\n        List[Dict[str, str]]: List of search results, each containing:\n            - title: Result title\n            - link: Result URL\n            - snippet: Result description (if include_snippets=True)\n            - content: Webpage content in markdown (if include_content=True)\n    \"\"\"\n    api_key = os.getenv(\"GOOGLE_API_KEY\")\n    cse_id = os.getenv(\"GOOGLE_CSE_ID\")\n\n    if not api_key or not cse_id:\n        raise ValueError(\"Missing required environment variables. Please set GOOGLE_API_KEY and GOOGLE_CSE_ID.\")\n\n    num_results = min(max(1, num_results), 10)\n\n    async def fetch_page_content(url: str, max_length: Optional[int] = 50000) -> str:\n        \"\"\"Helper function to fetch and convert webpage content to markdown\"\"\"\n        headers = {\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\"}\n\n        try:\n            async with httpx.AsyncClient() as client:\n                response = await client.get(url, headers=headers, timeout=10)\n                response.raise_for_status()\n\n                soup = BeautifulSoup(response.text, \"html.parser\")\n\n                # Remove script and style elements\n                for script in soup([\"script\", \"style\"]):\n                    script.decompose()\n\n                # Convert relative URLs to absolute\n                for tag in soup.find_all([\"a\", \"img\"]):\n                    if tag.get(\"href\"):\n                        tag[\"href\"] = urljoin(url, tag[\"href\"])\n                    if tag.get(\"src\"):\n                        tag[\"src\"] = urljoin(url, tag[\"src\"])\n\n                h2t = html2text.HTML2Text()\n                h2t.body_width = 0\n                h2t.ignore_images = False\n                h2t.ignore_emphasis = False\n                h2t.ignore_links = False\n                h2t.ignore_tables = False\n\n                markdown = h2t.handle(str(soup))\n\n                if max_length and len(markdown) > max_length:\n                    markdown = markdown[:max_length] + \"\\n...(truncated)\"\n\n                return markdown.strip()\n\n        except Exception as e:\n            return f\"Error fetching content: {str(e)}\"\n\n    params = {\n        \"key\": api_key,\n        \"cx\": cse_id,\n        \"q\": query,\n        \"num\": num_results,\n        \"hl\": language,\n        \"safe\": \"active\" if safe_search else \"off\",\n    }\n\n    if country:\n        params[\"gl\"] = country\n\n    try:\n        async with httpx.AsyncClient() as client:\n            response = await client.get(\"https://www.googleapis.com/customsearch/v1\", params=params, timeout=10)\n            response.raise_for_status()\n            data = response.json()\n\n            results = []\n            if \"items\" in data:\n                for item in data[\"items\"]:\n                    result = {\"title\": item.get(\"title\", \"\"), \"link\": item.get(\"link\", \"\")}\n                    if include_snippets:\n                        result[\"snippet\"] = item.get(\"snippet\", \"\")\n\n                    if include_content:\n                        result[\"content\"] = await fetch_page_content(result[\"link\"], max_length=content_max_length)\n\n                    results.append(result)\n\n            return results\n\n    except httpx.RequestError as e:\n        raise ValueError(f\"Failed to perform search: {str(e)}\") from e\n    except KeyError as e:\n        raise ValueError(f\"Invalid API response format: {str(e)}\") from e\n    except Exception as e:\n        raise ValueError(f\"Error during search: {str(e)}\") from e\n",
+                      "name": "google_search",
+                      "description": "\n    Perform Google searches using the Custom Search API with optional webpage content fetching.\n    Requires GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables to be set.\n    ",
+                      "global_imports": [
+                        {
+                          "module": "typing",
+                          "imports": [
+                            "List",
+                            "Dict",
+                            "Optional"
+                          ]
+                        },
+                        "os",
+                        "httpx",
+                        "html2text",
+                        {
+                          "module": "bs4",
+                          "imports": [
+                            "BeautifulSoup"
+                          ]
+                        },
+                        {
+                          "module": "urllib.parse",
+                          "imports": [
+                            "urljoin"
+                          ]
+                        }
+                      ],
+                      "has_cancellation_support": false
+                    }
+                  },
+                  {
+                    "provider": "autogen_core.tools.FunctionTool",
+                    "component_type": "tool",
+                    "version": 1,
+                    "component_version": 1,
+                    "description": "Create custom tools by wrapping standard Python functions.",
+                    "label": "FunctionTool",
+                    "config": {
+                      "source_code": "async def fetch_webpage(\n    url: str, include_images: bool = True, max_length: Optional[int] = None, headers: Optional[Dict[str, str]] = None\n) -> str:\n    \"\"\"Fetch a webpage and convert it to markdown format.\n\n    Args:\n        url: The URL of the webpage to fetch\n        include_images: Whether to include image references in the markdown\n        max_length: Maximum length of the output markdown (if None, no limit)\n        headers: Optional HTTP headers for the request\n\n    Returns:\n        str: Markdown version of the webpage content\n\n    Raises:\n        ValueError: If the URL is invalid or the page can't be fetched\n    \"\"\"\n    # Use default headers if none provided\n    if headers is None:\n        headers = {\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\"}\n\n    try:\n        # Fetch the webpage\n        async with httpx.AsyncClient() as client:\n            response = await client.get(url, headers=headers, timeout=10)\n            response.raise_for_status()\n\n            # Parse HTML\n            soup = BeautifulSoup(response.text, \"html.parser\")\n\n            # Remove script and style elements\n            for script in soup([\"script\", \"style\"]):\n                script.decompose()\n\n            # Convert relative URLs to absolute\n            for tag in soup.find_all([\"a\", \"img\"]):\n                if tag.get(\"href\"):\n                    tag[\"href\"] = urljoin(url, tag[\"href\"])\n                if tag.get(\"src\"):\n                    tag[\"src\"] = urljoin(url, tag[\"src\"])\n\n            # Configure HTML to Markdown converter\n            h2t = html2text.HTML2Text()\n            h2t.body_width = 0  # No line wrapping\n            h2t.ignore_images = not include_images\n            h2t.ignore_emphasis = False\n            h2t.ignore_links = False\n            h2t.ignore_tables = False\n\n            # Convert to markdown\n            markdown = h2t.handle(str(soup))\n\n            # Trim if max_length is specified\n            if max_length and len(markdown) > max_length:\n                markdown = markdown[:max_length] + \"\\n...(truncated)\"\n\n            return markdown.strip()\n\n    except httpx.RequestError as e:\n        raise ValueError(f\"Failed to fetch webpage: {str(e)}\") from e\n    except Exception as e:\n        raise ValueError(f\"Error processing webpage: {str(e)}\") from e\n",
+                      "name": "fetch_webpage",
+                      "description": "Fetch a webpage and convert it to markdown format, with options for including images and limiting length",
+                      "global_imports": [
+                        "os",
+                        "html2text",
+                        {
+                          "module": "typing",
+                          "imports": [
+                            "Optional",
+                            "Dict"
+                          ]
+                        },
+                        "httpx",
+                        {
+                          "module": "bs4",
+                          "imports": [
+                            "BeautifulSoup"
+                          ]
+                        },
+                        {
+                          "module": "html2text",
+                          "imports": [
+                            "HTML2Text"
+                          ]
+                        },
+                        {
+                          "module": "urllib.parse",
+                          "imports": [
+                            "urljoin"
+                          ]
+                        }
+                      ],
+                      "has_cancellation_support": false
+                    }
+                  }
+                ],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "A research assistant that performs web searches and analyzes information",
+                "system_message": "You are a research assistant focused on finding accurate information.\n        Use the google_search tool to find relevant information.\n        Break down complex queries into specific search terms.\n        Always verify information across multiple sources when possible.\n        When you find relevant information, explain why it's relevant and how it connects to the query. When you get feedback from the a verifier agent, use your tools to act on the feedback and make progress.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "verifier",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "temperature": 0.7,
+                    "model": "gpt-4o"
+                  }
+                },
+                "tools": [],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "A verification specialist who ensures research quality and completeness",
+                "system_message": "You are a research verification specialist.\n        Your role is to:\n        1. Verify that search queries are effective and suggest improvements if needed\n        2. Explore drill downs where needed e.g, if the answer is likely in a link in the returned search results, suggest clicking on the link\n        3. Suggest additional angles or perspectives to explore. Be judicious in suggesting new paths to avoid scope creep or wasting resources, if the task appears to be addressed and we can provide a report, do this and respond with \"TERMINATE\".\n        4. Track progress toward answering the original question\n        5. When the research is complete, provide a detailed summary in markdown format. For incomplete research, end your message with \"CONTINUE RESEARCH\". For complete research, end your message with APPROVED.\n        Your responses should be structured as:\n        - Progress Assessment\n        - Gaps/Issues (if any)\n        - Suggestions (if needed)\n        - Next Steps or Final Summary",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            },
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "summary_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "temperature": 0.7,
+                    "model": "gpt-4o"
+                  }
+                },
+                "tools": [],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "A summary agent that provides a detailed markdown summary of the research as a report to the user.",
+                "system_message": "You are a summary agent. Your role is to provide a detailed markdown summary of the research as a report to the user. Your report should have a reasonable title that matches the research question and should summarize the key details in the results found in natural an actionable manner. The main results/answer should be in the first paragraph. Where reasonable, your report should have clear comparison tables that drive critical insights. Most importantly, you should have a reference section and cite the key sources (where available) for facts obtained INSIDE THE MAIN REPORT. Also, where appropriate, you may add images if available that illustrate concepts needed for the summary.\n        Your report should end with the word \"TERMINATE\" to signal the end of the conversation.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            }
+          ],
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "Chat completion client for OpenAI hosted models.",
+            "label": "OpenAIChatCompletionClient",
+            "config": {
+              "temperature": 0.7,
+              "model": "gpt-4o"
+            }
+          },
+          "termination_condition": {
+            "provider": "autogen_agentchat.base.OrTerminationCondition",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "label": "OrTerminationCondition",
+            "config": {
+              "conditions": [
+                {
+                  "provider": "autogen_agentchat.conditions.TextMentionTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation if a specific text is mentioned.",
+                  "label": "TextMentionTermination",
+                  "config": {
+                    "text": "TERMINATE"
+                  }
+                },
+                {
+                  "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+                  "label": "MaxMessageTermination",
+                  "config": {
+                    "max_messages": 30,
+                    "include_agent_event": false
+                  }
+                }
+              ]
+            }
+          },
+          "selector_prompt": "You are coordinating a research team by selecting the team member to speak/act next. The following team member roles are available:\n    {roles}.\n    The research_assistant performs searches and analyzes information.\n    The verifier evaluates progress and ensures completeness.\n    The summary_agent provides a detailed markdown summary of the research as a report to the user.\n\n    Given the current context, select the most appropriate next speaker.\n    The research_assistant should search and analyze.\n    The verifier should evaluate progress and guide the research (select this role is there is a need to verify/evaluate progress). You should ONLY select the summary_agent role if the research is complete and it is time to generate a report.\n\n    Base your selection on:\n    1. Current stage of research\n    2. Last speaker's findings or suggestions\n    3. Need for verification vs need for new information\n    Read the following conversation. Then select the next role from {participants} to play. Only return the role.\n\n    {history}\n\n    Read the above conversation. Then select the next role from {participants} to play. ONLY RETURN THE ROLE.",
+          "allow_repeated_speaker": true,
+          "max_selector_attempts": 3
+        }
+      },
+      {
+        "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+        "component_type": "team",
+        "version": 1,
+        "component_version": 1,
+        "description": "RAG",
+        "label": "RAG",
+        "config": {
+          "participants": [
+            {
+              "provider": "autogen_agentchat.agents.AssistantAgent",
+              "component_type": "agent",
+              "version": 1,
+              "component_version": 1,
+              "description": "An agent that provides assistance with tool use.",
+              "label": "AssistantAgent",
+              "config": {
+                "name": "assistant_agent",
+                "model_client": {
+                  "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+                  "component_type": "model",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Chat completion client for OpenAI hosted models.",
+                  "label": "OpenAIChatCompletionClient",
+                  "config": {
+                    "model": "gpt-4o-mini"
+                  }
+                },
+                "tools": [
+                  {
+                    "provider": "autogen_core.tools.FunctionTool",
+                    "component_type": "tool",
+                    "version": 1,
+                    "component_version": 1,
+                    "description": "Create custom tools by wrapping standard Python functions.",
+                    "label": "FunctionTool",
+                    "config": {
+                      "source_code": "def calculator(a: float, b: float, operator: str) -> str:\n    try:\n        if operator == \"+\":\n            return str(a + b)\n        elif operator == \"-\":\n            return str(a - b)\n        elif operator == \"*\":\n            return str(a * b)\n        elif operator == \"/\":\n            if b == 0:\n                return \"Error: Division by zero\"\n            return str(a / b)\n        else:\n            return \"Error: Invalid operator. Please use +, -, *, or /\"\n    except Exception as e:\n        return f\"Error: {str(e)}\"\n",
+                      "name": "calculator",
+                      "description": "A simple calculator that performs basic arithmetic operations",
+                      "global_imports": [],
+                      "has_cancellation_support": false
+                    }
+                  }
+                ],
+                "handoffs": [],
+                "model_context": {
+                  "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+                  "component_type": "chat_completion_context",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+                  "label": "UnboundedChatCompletionContext",
+                  "config": {}
+                },
+                "description": "An agent that provides assistance with ability to use tools.",
+                "system_message": "You are a helpful assistant. Solve tasks carefully. When done, say TERMINATE.",
+                "model_client_stream": false,
+                "reflect_on_tool_use": false,
+                "tool_call_summary_format": "{result}"
+              }
+            }
+          ],
+          "termination_condition": {
+            "provider": "autogen_agentchat.base.OrTerminationCondition",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "label": "OrTerminationCondition",
+            "config": {
+              "conditions": [
+                {
+                  "provider": "autogen_agentchat.conditions.TextMentionTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation if a specific text is mentioned.",
+                  "label": "TextMentionTermination",
+                  "config": {
+                    "text": "TERMINATE"
+                  }
+                },
+                {
+                  "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+                  "component_type": "termination",
+                  "version": 1,
+                  "component_version": 1,
+                  "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+                  "label": "MaxMessageTermination",
+                  "config": {
+                    "max_messages": 10,
+                    "include_agent_event": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

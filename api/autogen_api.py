@@ -85,20 +85,30 @@ async def get_weather(
 # 定義新聞API路由
 @app.get("/news", response_class=JSONResponse, tags=["新聞查詢"])
 async def get_news(
-    category: Optional[str] = Query(None, description="新聞類別（科技、財經、體育等）"),
-    count: int = Query(5, description="返回新聞數量", ge=1, le=20)
+    query: str = Query(..., description="搜索關鍵字"),
+    num_results: int = Query(5, description="返回結果數量", ge=1, le=5),
+    category: str = Query("web", description="搜索類別"),
+    search_type: str = Query("keyword", description="搜索類型")
 ):
     """
-    查詢最新新聞
+    查詢新聞
     
     參數:
-    - category: 新聞類別（科技、財經、體育等）
-    - count: 返回新聞數量
+    - query: 搜索關鍵字
+    - num_results: 返回結果數量（1-5條）
+    - category: 搜索類別，預設為"web"
+    - search_type: 搜索類型，預設為"keyword"
     """
     try:
-        query = f"最新{category if category else ''}新聞，返回{count}條"
-        result = await news_team.run(task=query)
-        return {"status": "success", "category": category, "result": result}
+        search_query = f"搜索{category}類別的{query}相關新聞，返回{num_results}條"
+        result = await news_team.run(task=search_query)
+        return {
+            "status": "success", 
+            "query": query,
+            "category": category,
+            "search_type": search_type,
+            "result": result
+        }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
