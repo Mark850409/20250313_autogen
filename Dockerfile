@@ -19,7 +19,7 @@ USER autogen
 
 # 複製並安裝 Python 依賴
 COPY --chown=autogen:autogen requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install autogen autogen-ext autogen-agentchat autogen-core pyautogen mcp exa-py mcp-server mcp-server-fetch
 
 # 創建並掛載 /data 目錄
 VOLUME [ "/data" ]
